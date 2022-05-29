@@ -71,10 +71,15 @@ public class PrinkInformationReduction {
                                 .withTimestampAssigner((fare, t) -> fare.getEventTimeMillis()));
 
         // compute tips per hour for each driver
+//        DataStream<Tuple4<Long, Long, String, Float>> privateFares = fares
+//                .keyBy((TaxiFare fare) -> fare.driverId)
+//                .window(TumblingEventTimeWindows.of(Time.hours(8)))
+//                .process(new RangeAggregationProcessWindowFunction());
+
         DataStream<Tuple4<Long, Long, String, Float>> privateFares = fares
                 .keyBy((TaxiFare fare) -> fare.driverId)
-                .window(TumblingEventTimeWindows.of(Time.hours(8)))
-                .process(new RangeAggregationProcessWindowFunction());
+                .process(new CastleFunction());
+
 
         privateFares.addSink(sink);
 
