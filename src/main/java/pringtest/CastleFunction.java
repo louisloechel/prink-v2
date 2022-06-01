@@ -1,5 +1,8 @@
 package pringtest;
 
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
+import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -14,7 +17,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Random;
 
-public class CastleFunction extends KeyedProcessFunction<Long, TaxiFare, Tuple4<Long, Long, String, Float>> implements CheckpointedFunction {
+public class CastleFunction extends KeyedProcessFunction
+        implements CheckpointedFunction {
+
+    public enum Generalization {
+        REDUCTION,
+        AGGREGATION,
+        NONE
+    }
+
+    private Generalization[] config;
 
     private int k = 5;
     private int delta = 10;
@@ -24,7 +36,7 @@ public class CastleFunction extends KeyedProcessFunction<Long, TaxiFare, Tuple4<
     /* Set of k_s anonymized clusters */
     private ArrayList<Cluster> bigOmega = new ArrayList<>();
     /* All tuple objects currently at hold */
-    private ArrayList<Object> globalTuples = new ArrayList<>();
+    private ArrayList<Tuple> globalTuples = new ArrayList<>();
     /* The average information loss per cluster */
     private float tau = 0;
 
@@ -34,29 +46,30 @@ public class CastleFunction extends KeyedProcessFunction<Long, TaxiFare, Tuple4<
 //        this.beta = beta;
 //    }
 
-    public CastleFunction(){}
+    public CastleFunction(Generalization[] config){
+        this.config = config;
+    }
 
     @Override
-    public void processElement(TaxiFare input, Context context, Collector<Tuple4<Long, Long, String, Float>> output) throws Exception {
+    public void processElement(Object input, Context context, Collector output) throws Exception {
+        // TODO move outside of CastelFunction
+        Tuple tuple = convertToTuple(input);
 
-        Cluster bestCluster = bestSelection(input);
+        Cluster bestCluster = bestSelection(tuple);
         if(bestCluster == null){
             // Create a new cluster on 'input' and insert it into bigGamma
-            bestCluster = new Cluster();
+            bestCluster = new Cluster(config);
             bigGamma.add(bestCluster);
         }
         // Push 'input' into bestCluster
-        bestCluster.addEntry(input);
-        globalTuples.add(input);
+        bestCluster.addEntry(tuple);
+        globalTuples.add(tuple);
 
-        // Let 'inputOld' be the tuple with position equal to [input.position - delta]
-//        Object inputOld = null; // TODO getTupleAtPosition(input.position - delta);
-//        if(!inputOld.isReleased()) delayConstraint(inputOld); // TODO create isReleased() for clusters
-        // different approach from the CASTLEGUARD code (see: https://github.com/hallnath1/CASTLEGUARD)
+        // Different approach from the CASTLEGUARD code (see: https://github.com/hallnath1/CASTLEGUARD)
         if(globalTuples.size() > delta) delayConstraint(globalTuples.get(0), output);
     }
 
-    private void delayConstraint(Object input, Collector output) {
+    private void delayConstraint(Tuple input, Collector output) {
         Cluster clusterWithInput = getClusterContaining(input);
 
         if(clusterWithInput.size() >= k){
@@ -142,7 +155,7 @@ public class CastleFunction extends KeyedProcessFunction<Long, TaxiFare, Tuple4<
         }
 
         for(Cluster cluster: clusters){
-            for(Object tuple: cluster.getAllEntries()){
+            for(Tuple tuple: cluster.getAllEntries()){
 
                 output.collect(cluster.generalize(tuple));
 //                TODO check if entry should be deleted here or with the deletion of the cluster below (check for calculation of tau)
@@ -201,7 +214,7 @@ public class CastleFunction extends KeyedProcessFunction<Long, TaxiFare, Tuple4<
      * @return the best selection of all possible clusters.
      * Returns null if no fitting cluster is present.
      */
-    private Cluster bestSelection(Object input) {
+    private Cluster bestSelection(Tuple input) {
         ArrayList<Float> enlargementResults = new ArrayList<>();
 
         for (Cluster cluster: bigGamma){
@@ -236,6 +249,18 @@ public class CastleFunction extends KeyedProcessFunction<Long, TaxiFare, Tuple4<
             // Return any cluster in okCluster with minValue
             return okClusters.get(0);
         }
+    }
+
+    private Tuple convertToTuple(Object input){
+//        Type t = data.GetType();
+//        if(t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Tuple<,>))
+//        {
+//            var types = t.GetGenericArguments();
+//            Console.WriteLine("Datatype = Tuple<{0}, {1}>", types[0].Name, types[1].Name)
+//        }
+        // TODO make independent of TaxiFare
+        TaxiFare temp = (TaxiFare) input;
+        return new Tuple4<>(temp.rideId, temp.taxiId, temp.totalFare, temp.totalFare);
     }
 
     // State section
