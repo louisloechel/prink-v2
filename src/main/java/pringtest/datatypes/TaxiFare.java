@@ -48,7 +48,7 @@ public class TaxiFare implements Serializable {
         this.rideId = rideId;
         this.taxiId = g.taxiId();
         this.driverId = g.driverId();
-        this.startTime = g.startTime();
+        this.startTime = Instant.now(); //g.startTime();
         this.paymentType = g.paymentType();
         this.tip = g.tip();
         this.tolls = g.tolls();

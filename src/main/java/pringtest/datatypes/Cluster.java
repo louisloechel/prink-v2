@@ -141,6 +141,8 @@ public class Cluster {
                 return Tuple3.of(fieldValues[0], fieldValues[1], fieldValues[2]);
             case 4:
                 return Tuple4.of(fieldValues[0], fieldValues[1], fieldValues[2], fieldValues[3]);
+            case 8:
+                return Tuple8.of(fieldValues[0], fieldValues[1], fieldValues[2], fieldValues[3], fieldValues[4], fieldValues[5], fieldValues[6], fieldValues[7]);
             default:
                 return new Tuple0();
         }

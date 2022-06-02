@@ -34,6 +34,7 @@ public class TaxiFareGenerator implements SourceFunction<TaxiFare> {
 
     private volatile boolean running = true;
     private Instant limitingTimestamp = Instant.MAX;
+    private int maxIterations = -1;
 
     /** Create a bounded TaxiFareGenerator that runs only for the specified duration. */
     public static TaxiFareGenerator runFor(Duration duration) {
@@ -41,6 +42,12 @@ public class TaxiFareGenerator implements SourceFunction<TaxiFare> {
         generator.limitingTimestamp = DataGenerator.BEGINNING.plus(duration);
         return generator;
     }
+
+    public TaxiFareGenerator(int iterations){
+        this.maxIterations = iterations;
+    }
+
+    public TaxiFareGenerator(){}
 
     @Override
     public void run(SourceContext<TaxiFare> ctx) throws Exception {
@@ -52,6 +59,10 @@ public class TaxiFareGenerator implements SourceFunction<TaxiFare> {
 
             // don't emit events that exceed the specified limit
             if (fare.startTime.compareTo(limitingTimestamp) >= 0) {
+                break;
+            }
+
+            if (maxIterations > 0 && id >= maxIterations){
                 break;
             }
 

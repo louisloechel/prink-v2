@@ -1,7 +1,5 @@
 package pringtest;
 
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
@@ -52,8 +50,8 @@ public class CastleFunction extends KeyedProcessFunction
 
     @Override
     public void processElement(Object input, Context context, Collector output) throws Exception {
-        // TODO move outside of CastelFunction
-        Tuple tuple = convertToTuple(input);
+
+        Tuple tuple = (Tuple) input;
 
         Cluster bestCluster = bestSelection(tuple);
         if(bestCluster == null){
@@ -65,7 +63,7 @@ public class CastleFunction extends KeyedProcessFunction
         bestCluster.addEntry(tuple);
         globalTuples.add(tuple);
 
-        // Different approach from the CASTLEGUARD code (see: https://github.com/hallnath1/CASTLEGUARD)
+        // Different approach than CASTLE. Approach from the CASTLEGUARD code (see: https://github.com/hallnath1/CASTLEGUARD)
         if(globalTuples.size() > delta) delayConstraint(globalTuples.get(0), output);
     }
 
@@ -251,7 +249,7 @@ public class CastleFunction extends KeyedProcessFunction
         }
     }
 
-    private Tuple convertToTuple(Object input){
+/*    private Tuple convertToTuple(Object input){
 //        Type t = data.GetType();
 //        if(t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Tuple<,>))
 //        {
@@ -262,6 +260,7 @@ public class CastleFunction extends KeyedProcessFunction
         TaxiFare temp = (TaxiFare) input;
         return new Tuple4<>(temp.rideId, temp.taxiId, temp.totalFare, temp.totalFare);
     }
+    */
 
     // State section
     // TODO create the needed states
