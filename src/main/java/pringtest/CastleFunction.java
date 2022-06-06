@@ -1,6 +1,7 @@
 package pringtest;
 
 import org.apache.flink.api.java.tuple.Tuple;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -10,10 +11,8 @@ import org.apache.flink.util.Collector;
 import pringtest.datatypes.Cluster;
 import pringtest.datatypes.TaxiFare;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Random;
+import java.time.Instant;
+import java.util.*;
 
 public class CastleFunction extends KeyedProcessFunction
         implements CheckpointedFunction {
@@ -52,6 +51,7 @@ public class CastleFunction extends KeyedProcessFunction
     public void processElement(Object input, Context context, Collector output) throws Exception {
 
         Tuple tuple = (Tuple) input;
+        tuple.setField(Instant.now(), 2);
 
         Cluster bestCluster = bestSelection(tuple);
         if(bestCluster == null){
@@ -148,6 +148,7 @@ public class CastleFunction extends KeyedProcessFunction
         ArrayList<Cluster> clusters = new ArrayList<>();
         if(input.size() >= (2*k)){
             clusters.addAll(split(input));
+            bigGamma.remove(input); // TODO verify if removal at this position is correct
         }else{
             clusters.add(input);
         }
@@ -172,10 +173,86 @@ public class CastleFunction extends KeyedProcessFunction
         tau = (tau > 0) ? ((tau + cluster.infoLoss()) / 2) : cluster.infoLoss();
     }
 
+    /**
+     * Splits the cluster in smaller clusters still conforming k
+     * @param input Cluster to split
+     * @return Collection on newly generated sub-clusters
+     */
     private Collection<Cluster> split(Cluster input) {
-        // TODO remove temp code and implement real split function
+        // Output cluster. See 'SC' in CASTLE definition
         ArrayList<Cluster> output = new ArrayList<>();
-        output.add(input);
+        HashMap<Long, ArrayList<Tuple>> buckets = generateBuckets(input);
+
+        while(buckets.size() >= k){
+            // Randomly select a bucket and select one tuple
+            int random = new Random().nextInt(buckets.size());
+            List<Long> ids = new ArrayList<>(buckets.keySet());
+            long selectedBucketId = ids.get(random);
+            ArrayList<Tuple> selectedBucket = buckets.get(selectedBucketId);
+            Tuple selectedTuple = selectedBucket.get(0);
+
+            // Create new sub-cluster with selectedTuple and remove it from original entry
+            Cluster newCluster = new Cluster(config);
+            newCluster.addEntry(selectedTuple);
+            selectedBucket.remove(0);
+
+            if(selectedBucket.size() <= 0) buckets.remove(selectedBucketId);
+
+            // Find buckets with smallest distance to 'selectedTuple'
+            ArrayList<Tuple2<Long, Float>> distances = new ArrayList<>();
+            for(Map.Entry<Long, ArrayList<Tuple>> bucketEntry : buckets.entrySet()){
+                if(bucketEntry.getValue().equals(selectedBucket)) continue;
+                // Pick one of the tuples and calculate the distance to 'selectedTuple'
+                // TODO check correctness. See CASTLEGUARD and implementation of enlargement
+                distances.add(new Tuple2<>(bucketEntry.getKey(), newCluster.enlargementValue(bucketEntry.getValue().get(0))));
+            }
+            distances.sort(Comparator.comparing(o -> (o.f1)));
+
+            for(Tuple2<Long, Float> entry: distances.subList(0,k-1)){
+                ArrayList<Tuple> bucket = buckets.get(entry.f0);
+                Tuple firstTuple = bucket.get(0);
+                // Shift tuple from bucket into new cluster
+                newCluster.addEntry(firstTuple);
+                bucket.remove(0);
+                if(bucket.size() <= 0) buckets.remove(entry.f0);
+            }
+
+            output.add(newCluster);
+        }
+
+        for(Map.Entry<Long, ArrayList<Tuple>> bucketEntry : buckets.entrySet()){
+            // Find nearest cluster for remaining buckets
+            float nearestDistance = Float.MAX_VALUE;
+            Cluster nearestCluster = null;
+            for(Cluster out: output){
+                if(out.enlargementValue(bucketEntry.getValue().get(0)) < nearestDistance){
+                    nearestDistance = out.enlargementValue(bucketEntry.getValue().get(0));
+                    nearestCluster = out;
+                }
+            }
+            // Add all tuples to cluster and delete the cluster
+            nearestCluster.addAllEntries(bucketEntry.getValue());
+//            buckets.remove(bucketEntry.getKey()); // TODO maybe delete
+        }
+        return output;
+    }
+
+    /**
+     * Generates a HashMap (Buckets inside CASTLE) with all the tuples inside input, while using the tupleId as key
+     * @param input Cluster with tuples to create HashMap
+     * @return HashMap of all tuples sorted in 'buckets' based on tuple id
+     */
+    private HashMap<Long, ArrayList<Tuple>> generateBuckets(Cluster input) {
+        // TODO move posTupleId out of function into the config
+        int posTupleId = 1;
+
+        HashMap<Long, ArrayList<Tuple>> output = new HashMap<>();
+
+        for(Tuple tuple: input.getAllEntries()){
+            long tupleId = tuple.getField(posTupleId);
+            output.putIfAbsent(tupleId, new ArrayList<>());
+            output.get(tupleId).add(tuple);
+        }
         return output;
     }
 
