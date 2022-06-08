@@ -1,18 +1,23 @@
 package pringtest.datatypes;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.java.tuple.*;
 import pringtest.CastleFunction;
+import pringtest.generalizations.AggregationGeneralizer;
+import pringtest.generalizations.ReductionGeneralizer;
 
-import java.util.*;
-import java.util.stream.Stream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 public class Cluster {
 
     private final CastleFunction.Generalization[] config;
 
-    private ArrayList<Tuple> entries = new ArrayList<>();
-    private HashMap<Integer, Tuple2<Float, Float>> aggregationRanges = new HashMap<>();
+    private final ArrayList<Tuple> entries = new ArrayList<>();
+
+    private final AggregationGeneralizer aggreGeneralizer;
+    private final ReductionGeneralizer reductGeneralizer;
 
     // DEBUG params
     boolean showAddedEntry = false;
@@ -20,6 +25,8 @@ public class Cluster {
 
     public Cluster(CastleFunction.Generalization[] config) {
         this.config = config;
+        aggreGeneralizer = new AggregationGeneralizer(config);
+        reductGeneralizer = new ReductionGeneralizer(this);
     }
 
     // TODO check if float is needed or can be replaced with int
@@ -32,33 +39,16 @@ public class Cluster {
         return informationLossWith(input) - infoLoss();
     }
 
-    // TODO check if informationLossWith is the total loss or only in relation to input
     public float informationLossWith(Cluster input) {
-        double[] infoLossWith = new double[config.length];
-
-        for (int i = 0; i < config.length; i++) {
-            switch (config[i]) {
-                case NONE:
-                    infoLossWith[i] = 0;
-                    break;
-                case REDUCTION:
-                    infoLossWith[i] = generalizeReduction(input.getAllEntries(), i).f1;
-                    break;
-                case AGGREGATION:
-//                    fieldValues[i] = generalizeAggregation(i); TODO
-                    infoLossWith[i] = 1;
-                    break;
-                default:
-                    System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
-            }
-        }
-        double sumWith = Arrays.stream(infoLossWith).sum();
-        if(showInfoLoss) System.out.println("InfoLossTuple Cluster with: " + Arrays.toString(infoLossWith));
-        return (float) sumWith;
+        return informationLossWith(input.getAllEntries());
     }
 
     public float informationLossWith(Tuple input) {
+        return informationLossWith(Collections.singletonList(input));
+    }
 
+    // TODO check if informationLossWith is the total loss or only in relation to input
+    private float informationLossWith(List<Tuple> input) {
         double[] infoLossWith = new double[config.length];
 
         for (int i = 0; i < config.length; i++) {
@@ -67,11 +57,10 @@ public class Cluster {
                     infoLossWith[i] = 0;
                     break;
                 case REDUCTION:
-                    infoLossWith[i] = generalizeReduction(Collections.singletonList(input), i).f1;
+                    infoLossWith[i] = reductGeneralizer.generalize(input, i).f1;
                     break;
                 case AGGREGATION:
-//                    fieldValues[i] = generalizeAggregation(i); TODO
-                    infoLossWith[i] = 1;
+                    infoLossWith[i] = aggreGeneralizer.generalize(input, i).f1;
                     break;
                 default:
                     System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
@@ -91,11 +80,10 @@ public class Cluster {
                     infoLoss[i] = 0;
                     break;
                 case REDUCTION:
-                    infoLoss[i] = generalizeReduction(i).f1;
+                    infoLoss[i] = reductGeneralizer.generalize(i).f1;
                     break;
                 case AGGREGATION:
-//                    fieldValues[i] = generalizeAggregation(i); TODO
-                    infoLoss[i] = 1;
+                    infoLoss[i] = aggreGeneralizer.generalize(i).f1;
                     break;
                 default:
                     System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
@@ -122,10 +110,10 @@ public class Cluster {
                     fieldValues[i] = input.getField(i);
                     break;
                 case REDUCTION:
-                    fieldValues[i] = generalizeReduction(i).f0;
+                    fieldValues[i] = reductGeneralizer.generalize(i).f0;
                     break;
                 case AGGREGATION:
-                    fieldValues[i] = generalizeAggregation(i);
+                    fieldValues[i] = aggreGeneralizer.generalize(i).f0;
                     break;
                 default:
                     System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
@@ -152,7 +140,7 @@ public class Cluster {
         if (showAddedEntry) System.out.println("Added " + input.toString() + " to cluster: " + this.toString() + " size:" + this.entries.size());
         entries.add(input);
         // Update the aggregation boundaries
-        updateAggregationBounds(input);
+        aggreGeneralizer.updateAggregationBounds(input);
     }
 
     public void addAllEntries(ArrayList<Tuple> input) {
@@ -160,11 +148,11 @@ public class Cluster {
         entries.addAll(input);
         // Update the aggregation boundaries for all inputs
         for (Tuple in : input) {
-            updateAggregationBounds(in);
+            aggreGeneralizer.updateAggregationBounds(in);
         }
     }
 
-    public void removeEntry(Object input) {
+    public void removeEntry(Tuple input) {
         entries.remove(input);
     }
 
@@ -172,7 +160,7 @@ public class Cluster {
         return entries;
     }
 
-    public boolean contains(Object input) {
+    public boolean contains(Tuple input) {
         return entries.contains(input);
     }
 
@@ -180,80 +168,4 @@ public class Cluster {
         return entries.size();
     }
 
-    /**
-     * Update the upper and lower bound of aggregated fields
-     * @param input the new added tuple
-     */
-    private void updateAggregationBounds(Tuple input) {
-        for (int i = 0; i < config.length; i++) {
-            if (config[i] == CastleFunction.Generalization.AGGREGATION) {
-                if (!aggregationRanges.containsKey(i)) {
-                    aggregationRanges.put(i, new Tuple2<>(input.getField(i), input.getField(i)));
-                } else {
-                    aggregationRanges.get(i).f0 = Math.min(input.getField(i), aggregationRanges.get(i).f0);
-                    aggregationRanges.get(i).f1 = Math.max(input.getField(i), aggregationRanges.get(i).f1);
-                }
-            }
-        }
-    }
-
-    /**
-     * Reduces information by replacing the last values with '*' until all values are the same
-     * @param pos Position of the value inside the tuple
-     * @return Tuple2<String, Float> where f1 is the reduced value as a String
-     * and f2 is the information loss of the generalization
-     */
-    private Tuple2<String, Float> generalizeReduction(int pos) {
-        return generalizeReduction(null, pos);
-    }
-
-    private Tuple2<String, Float> generalizeReduction(List<Tuple> withTuples, int pos) {
-
-        int arraySize = (withTuples == null) ? entries.size() : (entries.size() + withTuples.size());
-        if(arraySize <= 0){
-            System.out.println("FIXME: generalizeReduction called with length of 0. Cluster size:" + this.entries.size());
-            return new Tuple2<>("",0f);
-        }
-        String[] ids = new String[arraySize];
-
-        for (int i = 0; i < entries.size(); i++) {
-            Long temp = entries.get(i).getField(pos);
-            ids[i] = String.valueOf(temp);
-        }
-
-        if(withTuples != null){
-            for (int i = 0; i < withTuples.size(); i++) {
-                Long temp = withTuples.get(i).getField(pos);
-                ids[i + entries.size()] = String.valueOf(temp);
-            }
-        }
-
-        int maxLength = Stream.of(ids).map(String::length).max(Integer::compareTo).get();
-
-        // count number of reducted chars to calculate a information loss value
-        float numReducted = 0;
-
-        for (int i = 0; i < maxLength; i++) {
-            for (int j = 0; j < ids.length; j++) {
-                String overlay = StringUtils.repeat('*', i);
-                ids[j] = StringUtils.overlay(ids[j], overlay, ids[j].length() - i, ids[j].length());
-            }
-            numReducted++;
-            // Break loop when all values are the same
-            // TODO check if HashSet methode to find count is faster
-            if (Stream.of(ids).distinct().count() <= 1) break;
-
-        }
-        return new Tuple2<>(ids[0], numReducted);
-    }
-
-    /**
-     * Returns the previous recorded Aggregation bounds for a given position
-     * (see addEntry() and addAllEntries())
-     * @param pos Position inside the entry tuple
-     * @return aggregation bounds ad Tuple2<Float, Float>
-     */
-    private Tuple2<Float, Float> generalizeAggregation(int pos) {
-        return Tuple2.of(aggregationRanges.get(pos).f0, aggregationRanges.get(pos).f1);
-    }
 }

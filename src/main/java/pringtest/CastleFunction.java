@@ -2,14 +2,12 @@ package pringtest;
 
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 import pringtest.datatypes.Cluster;
-import pringtest.datatypes.TaxiFare;
 
 import java.time.Instant;
 import java.util.*;
@@ -23,17 +21,17 @@ public class CastleFunction extends KeyedProcessFunction
         NONE
     }
 
-    private Generalization[] config;
+    private final Generalization[] config;
 
-    private int k = 5;
-    private int delta = 10;
-    private int beta = 5;
+    private final int k = 5;
+    private final int delta = 10;
+    private final int beta = 5;
     /* Set of non-k_s anonymized clusters */
-    private ArrayList<Cluster> bigGamma = new ArrayList<>();
+    private final ArrayList<Cluster> bigGamma = new ArrayList<>();
     /* Set of k_s anonymized clusters */
-    private ArrayList<Cluster> bigOmega = new ArrayList<>();
+    private final ArrayList<Cluster> bigOmega = new ArrayList<>();
     /* All tuple objects currently at hold */
-    private ArrayList<Tuple> globalTuples = new ArrayList<>();
+    private final ArrayList<Tuple> globalTuples = new ArrayList<>();
     /* The average information loss per cluster */
     private float tau = 0;
 
@@ -136,7 +134,7 @@ public class CastleFunction extends KeyedProcessFunction
      * Removes the 'input' tuple from the castle algorithm
      * @param input Tuple to remove
      */
-    private void removeTuple(Object input) {
+    private void removeTuple(Tuple input) {
         globalTuples.remove(input);
         Cluster cluster = getClusterContaining(input);
         cluster.removeEntry(input);
@@ -261,7 +259,7 @@ public class CastleFunction extends KeyedProcessFunction
      * @param input
      * @return Cluster including 'input'
      */
-    private Cluster getClusterContaining(Object input) {
+    private Cluster getClusterContaining(Tuple input) {
         for(Cluster cluster: bigGamma){
             if(cluster.contains(input)) return cluster;
         }
@@ -273,7 +271,7 @@ public class CastleFunction extends KeyedProcessFunction
      * @param input
      * @return Clusters including 'input'
      */
-    private Cluster[] getClustersContaining(Object input) {
+    private Cluster[] getClustersContaining(Tuple input) {
         ArrayList<Cluster> output = new ArrayList<>();
         for(Cluster cluster: bigOmega){
             if(cluster.contains(input)) output.add(cluster);
@@ -325,19 +323,6 @@ public class CastleFunction extends KeyedProcessFunction
             return okClusters.get(0);
         }
     }
-
-/*    private Tuple convertToTuple(Object input){
-//        Type t = data.GetType();
-//        if(t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Tuple<,>))
-//        {
-//            var types = t.GetGenericArguments();
-//            Console.WriteLine("Datatype = Tuple<{0}, {1}>", types[0].Name, types[1].Name)
-//        }
-        // TODO make independent of TaxiFare
-        TaxiFare temp = (TaxiFare) input;
-        return new Tuple4<>(temp.rideId, temp.taxiId, temp.totalFare, temp.totalFare);
-    }
-    */
 
     // State section
     // TODO create the needed states
