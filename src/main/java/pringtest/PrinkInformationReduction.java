@@ -2,13 +2,9 @@ package pringtest;
 
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.api.java.tuple.Tuple;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.api.java.tuple.Tuple8;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -18,8 +14,6 @@ import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
-import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 import pringtest.datatypes.TaxiFare;
@@ -27,6 +21,9 @@ import pringtest.sources.TaxiFareGenerator;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Class to test out flink functionality
@@ -80,9 +77,9 @@ public class PrinkInformationReduction {
         CastleFunction.Generalization[] config = new CastleFunction.Generalization[]{
                 CastleFunction.Generalization.NONE,
                 CastleFunction.Generalization.REDUCTION,
-                CastleFunction.Generalization.REDUCTION,
                 CastleFunction.Generalization.NONE,
                 CastleFunction.Generalization.NONE,
+                CastleFunction.Generalization.NONE, // CastleFunction.Generalization.NONNUMERICAL,
                 CastleFunction.Generalization.AGGREGATION,
                 CastleFunction.Generalization.AGGREGATION,
                 CastleFunction.Generalization.AGGREGATION};
@@ -147,12 +144,82 @@ public class PrinkInformationReduction {
 
     public class TimerSink extends RichSinkFunction<Tuple8<Object, Object, Object, Object,Object, Object, Object, Object>> {
 
+        int reportInterval = 1000;
+        int counter = 0;
+        long minTime = Long.MAX_VALUE;
+        long maxTime = Long.MIN_VALUE;
+        TreeMap<String, Integer> rangeCounter = new TreeMap<>();
+        ArrayList<Long> seenIds = new ArrayList<>();
+
         @Override
         public void invoke(Tuple8<Object, Object, Object, Object,Object, Object, Object, Object> input, Context context) throws Exception {
-            System.out.println(input.toString() +
+
+            long processingTime = Duration.between((Instant) input.f2, Instant.now()).toMillis();
+            seenIds.add((Long) input.f0);
+            counter++;
+
+            minTime = Math.min(minTime, processingTime);
+            maxTime = Math.max(maxTime, processingTime);
+
+            if(processingTime >= 0 && processingTime < 50){
+                rangeCounter.merge("A| 0ms - 49ms", 1, Integer::sum);
+            }else if (processingTime >= 50 && processingTime < 100){
+                rangeCounter.merge("B| 50ms - 99ms", 1, Integer::sum);
+            }else if (processingTime >= 100 && processingTime < 200){
+                rangeCounter.merge("C| 100ms - 199ms", 1, Integer::sum);
+            }else if (processingTime >= 200 && processingTime < 300){
+                rangeCounter.merge("D| 200ms - 299ms", 1, Integer::sum);
+            }else if (processingTime >= 300 && processingTime < 400){
+                rangeCounter.merge("E| 200ms - 399ms", 1, Integer::sum);
+            }else if (processingTime >= 400 && processingTime < 500){
+                rangeCounter.merge("F| 400ms - 499ms", 1, Integer::sum);
+            }else if (processingTime >= 500 && processingTime < 600){
+                rangeCounter.merge("G| 500ms - 599ms", 1, Integer::sum);
+            }else if (processingTime >= 600 && processingTime < 700){
+                rangeCounter.merge("H| 600ms - 699ms", 1, Integer::sum);
+            }else if (processingTime >= 700 && processingTime < 800){
+                rangeCounter.merge("I| 700ms - 799ms", 1, Integer::sum);
+            }else if (processingTime >= 800 && processingTime < 900){
+                rangeCounter.merge("J| 800ms - 899ms", 1, Integer::sum);
+            }else if (processingTime >= 900 && processingTime < 1000){
+                rangeCounter.merge("K| 900ms - 999ms", 1, Integer::sum);
+            }else if (processingTime >= 1000 && processingTime < 1250){
+                rangeCounter.merge("L| 1000ms - 1249ms", 1, Integer::sum);
+            }else if (processingTime >= 1250 && processingTime < 1500){
+                rangeCounter.merge("M| 1250ms - 1499ms", 1, Integer::sum);
+            }else if (processingTime >= 1500 && processingTime < 2000){
+                rangeCounter.merge("N| 1500ms - 1999ms", 1, Integer::sum);
+            }else if (processingTime >= 2000 && processingTime < 2500){
+                rangeCounter.merge("O| 2000ms - 2499ms", 1, Integer::sum);
+            }else{
+                rangeCounter.merge("P| 2500ms - >2500ms", 1, Integer::sum);
+            }
+
+            if((counter % reportInterval) == 0){
+                System.out.println(input.toString());
+                System.out.println("------------------ REPORT Sink:" + this + " --------------------");
+                for (Map.Entry<String, Integer> entry : rangeCounter.entrySet()) {
+//                    System.out.println("| " + entry.getKey() + ":       " + entry.getValue());
+                    System.out.format("| %18s | %16d |", entry.getKey().substring(3), entry.getValue());
+                    System.out.println();
+                }
+                System.out.println("------------------------------------------");
+                System.out.format("| %18s | %16d |", "Min. Time (ms)", minTime);
+                System.out.println();
+                System.out.format("| %18s | %16d |", "Max. Time (ms)", maxTime);
+                System.out.println();
+                System.out.format("| %18s | %16d |", "Total entries", counter);
+                System.out.println();
+                System.out.println("---------------------------------------------------");
+
+            }else{
+//            System.out.println(input.toString() +
 //                    ";" + ((Instant) input.f3).toEpochMilli() +
 //                    ";" + Instant.now().toEpochMilli() +
-                    "; ProcessingTime:" + (Duration.between((Instant) input.f3, Instant.now()).toMillis()));
+//                    ";ProcessingTime;" + (Duration.between((Instant) input.f2, Instant.now()).toMillis()));
+
+            }
+
         }
     }
 }

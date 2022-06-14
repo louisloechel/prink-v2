@@ -18,12 +18,14 @@ public class CastleFunction extends KeyedProcessFunction
     public enum Generalization {
         REDUCTION,
         AGGREGATION,
+        NONNUMERICAL,
         NONE
     }
 
     private final Generalization[] config;
 
     private final int k = 5;
+    private final int l = 2;
     private final int delta = 10;
     private final int beta = 5;
     /* Set of non-k_s anonymized clusters */
@@ -34,6 +36,10 @@ public class CastleFunction extends KeyedProcessFunction
     private final ArrayList<Tuple> globalTuples = new ArrayList<>();
     /* The average information loss per cluster */
     private float tau = 0;
+    /* Position of the id value inside the tuples */
+    private final int posTupleId = 1;
+    /* Position of the l diversity sensible attribute */
+    private final int posSensibleAttribute = 4;
 
 //    public CastleFunction(int k, int delta, int beta){
 //        this.k = k;
@@ -46,7 +52,7 @@ public class CastleFunction extends KeyedProcessFunction
     }
 
     @Override
-    public void processElement(Object input, Context context, Collector output) throws Exception {
+    public void processElement(Object input, Context context, Collector output) {
 
         Tuple tuple = (Tuple) input;
         tuple.setField(Instant.now(), 2);
@@ -67,8 +73,12 @@ public class CastleFunction extends KeyedProcessFunction
 
     private void delayConstraint(Tuple input, Collector output) {
         Cluster clusterWithInput = getClusterContaining(input);
+        if(clusterWithInput == null){
+            System.out.println("ERROR: delayConstraint -> clusterWithInput is NULL");
+            return;
+        }
 
-        if(clusterWithInput.size() >= k){
+        if(clusterWithInput.size() >= k && clusterWithInput.diversity() >= l){
             outputCluster(clusterWithInput, output);
         }else{
             // TODO check if it is possible to have multiple clusters
@@ -93,12 +103,13 @@ public class CastleFunction extends KeyedProcessFunction
                 // TODO find out what 'most generalized QI' exactly means
 //                output.collect(selected.generalize(input));
                 removeTuple(input);
+                return;
             }
 
             // TODO check which implementation is better
-            int totalGammaSize = bigGamma.stream().mapToInt(cluster -> cluster.size()).sum();
+            int totalGammaSize = bigGamma.stream().mapToInt(Cluster::size).sum();
 //            int count = bigGamma.stream().collect(summingInt(cluster -> cluster.size()) );
-            if(totalGammaSize < k){
+            if(totalGammaSize < k){ // TODO it must also be checked that there exist at least 'l' distinct values of a_s among all clusters in bigGamma
                 // suppress t
                 // TODO find out what 'most generalized QI' exactly means
 //                output.collect(selected.generalize(input));
@@ -118,13 +129,13 @@ public class CastleFunction extends KeyedProcessFunction
             for(Cluster cluster: bigGamma){
                 // skip 'input' to not merge with itself
                 if(cluster == input) continue;
-                
+
                 if(input.enlargementValue(cluster) < minEnlargement){
                     minEnlargement = input.enlargementValue(cluster);
                     clusterWithMinEnlargement = cluster;
                 }
             }
-            input.addAllEntries(clusterWithMinEnlargement.getAllEntries());
+            if(clusterWithMinEnlargement != null) input.addAllEntries(clusterWithMinEnlargement.getAllEntries());
             bigGamma.remove(clusterWithMinEnlargement);
         }
         return input;
@@ -138,14 +149,17 @@ public class CastleFunction extends KeyedProcessFunction
         globalTuples.remove(input);
         Cluster cluster = getClusterContaining(input);
         cluster.removeEntry(input);
-        // TODO maybe move inside cluster (inside removeEntry())
         if(cluster.size() <= 0) bigGamma.remove(cluster);
     }
 
     private void outputCluster(Cluster input, Collector output) {
         ArrayList<Cluster> clusters = new ArrayList<>();
-        if(input.size() >= (2*k)){
-            clusters.addAll(split(input));
+        if(input.size() >= (2*k) && input.diversity() >= l){
+            if(l > 0){
+                clusters.addAll(splitL(input, posSensibleAttribute));
+            }else{
+                clusters.addAll(split(input));
+            }
             bigGamma.remove(input); // TODO verify if removal at this position is correct
         }else{
             clusters.add(input);
@@ -153,7 +167,6 @@ public class CastleFunction extends KeyedProcessFunction
 
         for(Cluster cluster: clusters){
             for(Tuple tuple: cluster.getAllEntries()){
-
                 output.collect(cluster.generalize(tuple));
 //                TODO check if entry should be deleted here or with the deletion of the cluster below (check for calculation of tau)
 //                cluster.removeEntry(tuple);
@@ -183,6 +196,7 @@ public class CastleFunction extends KeyedProcessFunction
 
         while(buckets.size() >= k){
             // Randomly select a bucket and select one tuple
+            // TODO see if Random() needs to be defined outside the function
             int random = new Random().nextInt(buckets.size());
             List<Long> ids = new ArrayList<>(buckets.keySet());
             long selectedBucketId = ids.get(random);
@@ -229,9 +243,130 @@ public class CastleFunction extends KeyedProcessFunction
                 }
             }
             // Add all tuples to cluster and delete the cluster
-            nearestCluster.addAllEntries(bucketEntry.getValue());
+            if(nearestCluster != null) nearestCluster.addAllEntries(bucketEntry.getValue());
 //            buckets.remove(bucketEntry.getKey()); // TODO maybe delete
         }
+        return output;
+    }
+
+    private Collection<Cluster> splitL(Cluster input, int posSensAtt) {
+        ArrayList<Cluster> output = new ArrayList<>();
+        HashMap<Object, ArrayList<Tuple>> buckets = generateBucketsSensAtt(input, posSensAtt);
+
+        if(buckets.size() < l){
+            output.add(input);
+            return output;
+        }
+
+        int sum = 0;
+        for(ArrayList<Tuple> bucket: buckets.values()){
+            sum = sum + bucket.size();
+        }
+        while(buckets.size() >= l && sum >= k){
+            // Randomly select a bucket and select one tuple
+            // TODO see if Random() needs to be defined outside the function
+            Random random = new Random();
+            List<Object> ids = new ArrayList<>(buckets.keySet());
+            Object selectedBucketId = ids.get(random.nextInt(buckets.size()));
+            ArrayList<Tuple> selectedBucket = buckets.get(selectedBucketId);
+            int randomNum = random.nextInt(selectedBucket.size());
+            Tuple selectedTuple = selectedBucket.get(randomNum);
+
+            // Create new sub-cluster with selectedTuple and remove it from original entry
+            Cluster newCluster = new Cluster(config);
+            newCluster.addEntry(selectedTuple);
+            selectedBucket.remove(randomNum);
+
+            ArrayList<Object> bucketKeysToDelete = new ArrayList<>();
+
+            for(Map.Entry<Object, ArrayList<Tuple>> bucketEntry : buckets.entrySet()){
+                ArrayList<Tuple> bucket = bucketEntry.getValue();
+
+                // Find tuples with smallest enlargement
+                ArrayList<Tuple2<Tuple, Float>> enlargement = new ArrayList<>();
+                for(Tuple tuple: bucket){
+                    enlargement.add(new Tuple2<>(tuple, newCluster.enlargementValue(tuple)));
+                }
+                // Sort enlargement values to select the tuples with the smallest enlargements
+                enlargement.sort(Comparator.comparing(o -> (o.f1)));
+
+                // Select first (k*(bucket.size()/sum)) tuples and move them to the new cluster
+                for(int i = 0; i < (k*(bucket.size()/sum)); i++) {
+                    newCluster.addEntry(enlargement.get(i).f0);
+                    bucket.remove(enlargement.get(i).f0);
+                }
+
+                // Remove buckets that have no values in them
+//                if(bucket.size() <= 0) buckets.remove(bucketEntry.getKey());
+                if(bucket.size() <= 0) bucketKeysToDelete.add(bucketEntry.getKey());
+            }
+            for(Object key: bucketKeysToDelete) buckets.remove(key);
+
+            output.add(newCluster);
+        }
+
+        ArrayList<Object> bucketKeysToDelete = new ArrayList<>();
+
+        // Find nearest cluster for remaining bucket values
+        for(Map.Entry<Object, ArrayList<Tuple>> bucketEntry : buckets.entrySet()){
+            ArrayList<Tuple> bucket = bucketEntry.getValue();
+
+            for(Tuple tuple: bucket){
+                float nearestDistance = Float.MAX_VALUE;
+                Cluster nearestCluster = null;
+                for(Cluster out: output){
+                    if(out.enlargementValue(tuple) < nearestDistance){
+                        nearestDistance = out.enlargementValue(tuple);
+                        nearestCluster = out;
+                    }
+                }
+                // Add all tuples to cluster and delete the cluster
+                if(nearestCluster != null) nearestCluster.addEntry(tuple);
+            }
+            bucketKeysToDelete.add(bucketEntry.getKey());
+        }
+        for(Object key: bucketKeysToDelete) buckets.remove(key);
+
+        for(Cluster cluster: output){
+            ArrayList<Tuple> idTuples = new ArrayList<>();
+            for(Tuple tuple: cluster.getAllEntries()) {
+                // Select all tuples inside input with the same id value as tuple
+                // TODO check if generateBucketsSensAtt needs to remove tuples from the input cluster to prevent duplicates
+                long tupleId = tuple.getField(posTupleId);
+                for (Tuple inputTuple : input.getAllEntries()) {
+                    long tupleIdInput = inputTuple.getField(posTupleId);
+                    if (tupleId == tupleIdInput) idTuples.add(inputTuple);
+                }
+            }
+            // Add all tuples with the same ids to the cluster
+            cluster.addAllEntries(idTuples);
+            // Delete them from the input cluster
+            input.removeAllEntries(idTuples);
+            // Delete cluster from bigGamma if empty
+            if(input.size() <= 0) bigGamma.remove(input);
+        }
+
+        return output;
+    }
+
+    /**
+     * Generates a HashMap (Buckets inside CASTLE) with one tuples per 'pid' inside input, while using the sensible attribute as key
+     * @param input Cluster with tuples to create HashMap
+     * @return HashMap of one tuple per 'pid' sorted in 'buckets' based on 'sensible attribute'
+     */
+    private HashMap<Object, ArrayList<Tuple>> generateBucketsSensAtt(Cluster input, int posSensAtt) {
+        HashMap<Object, ArrayList<Tuple>> output = new HashMap<>();
+        HashSet<Long> usedIds = new HashSet<>();
+
+        for(Tuple tuple: input.getAllEntries()){
+            long tupleId = tuple.getField(posTupleId);
+            if(usedIds.add(tupleId)){
+                Object sensAtt = tuple.getField(posSensAtt);
+                output.putIfAbsent(sensAtt, new ArrayList<>());
+                output.get(sensAtt).add(tuple);
+            }
+        }
+        // TODO check if generateBucketsSensAtt needs to remove tuples from the input cluster
         return output;
     }
 
@@ -241,9 +376,6 @@ public class CastleFunction extends KeyedProcessFunction
      * @return HashMap of all tuples sorted in 'buckets' based on tuple id
      */
     private HashMap<Long, ArrayList<Tuple>> generateBuckets(Cluster input) {
-        // TODO move posTupleId out of function into the config
-        int posTupleId = 1;
-
         HashMap<Long, ArrayList<Tuple>> output = new HashMap<>();
 
         for(Tuple tuple: input.getAllEntries()){
@@ -256,7 +388,7 @@ public class CastleFunction extends KeyedProcessFunction
 
     /**
      * Returns the non-k_s anonymized cluster that includes 'input'
-     * @param input
+     * @param input The tuple that needs to be included
      * @return Cluster including 'input'
      */
     private Cluster getClusterContaining(Tuple input) {
@@ -268,7 +400,7 @@ public class CastleFunction extends KeyedProcessFunction
 
     /**
      * Returns all k_s anonymized clusters that includes 'input'
-     * @param input
+     * @param input The tuple that needs to be included
      * @return Clusters including 'input'
      */
     private Cluster[] getClustersContaining(Tuple input) {

@@ -3,6 +3,7 @@ package pringtest.datatypes;
 import org.apache.flink.api.java.tuple.*;
 import pringtest.CastleFunction;
 import pringtest.generalizations.AggregationGeneralizer;
+import pringtest.generalizations.NonNumericalGeneralizer;
 import pringtest.generalizations.ReductionGeneralizer;
 
 import java.util.ArrayList;
@@ -18,8 +19,10 @@ public class Cluster {
 
     private final AggregationGeneralizer aggreGeneralizer;
     private final ReductionGeneralizer reductGeneralizer;
+    private final NonNumericalGeneralizer nonNumGeneralizer;
 
     // DEBUG params
+    boolean showRemoveEntry = false;
     boolean showAddedEntry = false;
     boolean showInfoLoss = false;
 
@@ -27,6 +30,7 @@ public class Cluster {
         this.config = config;
         aggreGeneralizer = new AggregationGeneralizer(config);
         reductGeneralizer = new ReductionGeneralizer(this);
+        nonNumGeneralizer = new NonNumericalGeneralizer(config);
     }
 
     // TODO check if float is needed or can be replaced with int
@@ -62,6 +66,9 @@ public class Cluster {
                 case AGGREGATION:
                     infoLossWith[i] = aggreGeneralizer.generalize(input, i).f1;
                     break;
+                case NONNUMERICAL:
+                    infoLossWith[i] = nonNumGeneralizer.generalize(i).f1;
+                    break;
                 default:
                     System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
             }
@@ -85,6 +92,9 @@ public class Cluster {
                 case AGGREGATION:
                     infoLoss[i] = aggreGeneralizer.generalize(i).f1;
                     break;
+                case NONNUMERICAL:
+                    infoLoss[i] = nonNumGeneralizer.generalize(i).f1;
+                    break;
                 default:
                     System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
             }
@@ -101,7 +111,6 @@ public class Cluster {
 //        TypeInformation<Tuple> tupleInfo = getReturnValues();
 //        Map<String, TypeInformation<?>> tupleTypes = tupleInfo.getGenericParameters();
 //        tupleTypes.get("T0");
-
         Object[] fieldValues = new Object[config.length];
 
         for (int i = 0; i < config.length; i++) {
@@ -114,6 +123,9 @@ public class Cluster {
                     break;
                 case AGGREGATION:
                     fieldValues[i] = aggreGeneralizer.generalize(i).f0;
+                    break;
+                case NONNUMERICAL:
+                    fieldValues[i] = nonNumGeneralizer.generalize(i).f0;
                     break;
                 default:
                     System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
@@ -141,6 +153,7 @@ public class Cluster {
         entries.add(input);
         // Update the aggregation boundaries
         aggreGeneralizer.updateAggregationBounds(input);
+        nonNumGeneralizer.updateTree(input);
     }
 
     public void addAllEntries(ArrayList<Tuple> input) {
@@ -149,11 +162,20 @@ public class Cluster {
         // Update the aggregation boundaries for all inputs
         for (Tuple in : input) {
             aggreGeneralizer.updateAggregationBounds(in);
+            nonNumGeneralizer.updateTree(in);
         }
     }
 
     public void removeEntry(Tuple input) {
+        // TODO check if boundaries need to be adjusted when removing tuples
         entries.remove(input);
+        if(showRemoveEntry) System.out.println("Cluster: removeEntry -> new size:" + entries.size());
+    }
+
+    public void removeAllEntries(ArrayList<Tuple> idTuples) {
+        // TODO check if boundaries need to be adjusted when removing tuples
+        entries.removeAll(idTuples);
+        if(showRemoveEntry) System.out.println("Cluster: removeAllEntry -> new size:" + entries.size());
     }
 
     public ArrayList<Tuple> getAllEntries() {
@@ -166,6 +188,16 @@ public class Cluster {
 
     public int size() {
         return entries.size();
+    }
+
+    /**
+     * Returns the diversity of the cluster entries
+     * @return cluster diversity
+     */
+    public int diversity() {
+        // TODO calculate diversity
+        // TODO maybe calculate on insert to save performance
+        return 10;
     }
 
 }
