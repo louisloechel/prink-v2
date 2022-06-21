@@ -49,7 +49,7 @@ public class TaxiFare implements Serializable {
         this.taxiId = g.taxiId();
         this.driverId = g.driverId();
         this.startTime = Instant.now(); //g.startTime();
-        this.paymentType = g.paymentType();
+        this.paymentType = g.paymentTypeArray();//g.paymentType();
         this.tip = g.tip();
         this.tolls = g.tolls();
         this.totalFare = g.totalFare();
@@ -61,7 +61,7 @@ public class TaxiFare implements Serializable {
             long taxiId,
             long driverId,
             Instant startTime,
-            String paymentType,
+            String[] paymentType,
             float tip,
             float tolls,
             float totalFare) {
@@ -79,7 +79,7 @@ public class TaxiFare implements Serializable {
     public long taxiId;
     public long driverId;
     public Instant startTime;
-    public String paymentType;
+    public String[] paymentType;
     public float tip;
     public float tolls;
     public float totalFare;

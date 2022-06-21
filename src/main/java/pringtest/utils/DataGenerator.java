@@ -97,7 +97,59 @@ public class DataGenerator {
 
     /** Deterministically generates and returns the paymentType for this ride. */
     public String paymentType() {
-        return (rideId % 2 == 0) ? "CARD" : "CASH";
+        Random random = new Random();
+        switch (random.nextInt(8)){
+            case 0:
+                return "CARD";
+            case 1:
+                return "CASH";
+            case 2:
+                return "PAYPAL";
+            case 3:
+                return "APPLE PAY";
+            case 4:
+                return "Banknotes";
+            case 5:
+                return "Coins";
+            case 6:
+                return "CREDIT CARD";
+            case 7:
+                return "MAESTRO CARD";
+            default:
+                return "No payment";
+        }
+//        return (rideId % 2 == 0) ? "CARD" : "CASH";
+    }
+
+    /** Deterministically generates and returns the paymentType for this ride. */
+    public String[] paymentTypeArray() {
+        Random random = new Random();
+        switch (random.nextInt(11)){
+            case 0:
+                return new String[]{"CARD"};
+            case 1:
+                return new String[]{"CASH"};
+            case 2:
+                return new String[]{"CARD", "PAYPAL"};
+            case 3:
+                return new String[]{"CARD","APPLE PAY"};
+            case 4:
+                return new String[]{"CASH","Banknotes"};
+            case 5:
+                return new String[]{"CASH","Coins"};
+            case 6:
+                return new String[]{"CARD","CREDIT CARD"};
+            case 7:
+                return new String[]{"CARD","MAESTRO CARD"};
+            case 8:
+                return new String[]{"CARD","PAYPAL","Ratenzahlung"};
+            case 9:
+                return new String[]{"CARD","PAYPAL","Auf Rechnung"};
+            case 10:
+                return new String[]{"CARD","PAYPAL","Direktzahlung"};
+            default:
+                return new String[]{"No payment"};
+        }
     }
 
     /**

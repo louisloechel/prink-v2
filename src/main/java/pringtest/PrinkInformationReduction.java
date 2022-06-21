@@ -65,7 +65,7 @@ public class PrinkInformationReduction {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         // start the data generator and arrange for watermarking
-        DataStream<Tuple8<Long, Long, Long, Instant, String, Float, Float, Float>> fares = env
+        DataStream<Tuple8<Long, Long, Long, Instant, Object, Float, Float, Float>> fares = env
                 .addSource(source)
                 .assignTimestampsAndWatermarks(
                         // taxi fares are in order
@@ -79,7 +79,7 @@ public class PrinkInformationReduction {
                 CastleFunction.Generalization.REDUCTION,
                 CastleFunction.Generalization.NONE,
                 CastleFunction.Generalization.NONE,
-                CastleFunction.Generalization.NONE, // CastleFunction.Generalization.NONNUMERICAL,
+                CastleFunction.Generalization.NONNUMERICAL,
                 CastleFunction.Generalization.AGGREGATION,
                 CastleFunction.Generalization.AGGREGATION,
                 CastleFunction.Generalization.AGGREGATION};
@@ -133,10 +133,10 @@ public class PrinkInformationReduction {
     /**
      * Convert TaxiFares into a tuple8 representation
      */
-    public class TaxiFareToTuple implements MapFunction<TaxiFare, Tuple8<Long, Long, Long, Instant, String, Float, Float, Float>> {
+    public class TaxiFareToTuple implements MapFunction<TaxiFare, Tuple8<Long, Long, Long, Instant, Object, Float, Float, Float>> {
 
         @Override
-        public Tuple8<Long, Long, Long, Instant, String, Float, Float, Float> map(TaxiFare input) {
+        public Tuple8<Long, Long, Long, Instant, Object, Float, Float, Float> map(TaxiFare input) {
             return new Tuple8<>(input.rideId, input.taxiId, input.driverId, input.startTime,
                     input.paymentType, input.tip, input.tolls, input.totalFare);
         }
@@ -213,10 +213,10 @@ public class PrinkInformationReduction {
                 System.out.println("---------------------------------------------------");
 
             }else{
-//            System.out.println(input.toString() +
+                System.out.println(input.toString() +
 //                    ";" + ((Instant) input.f3).toEpochMilli() +
 //                    ";" + Instant.now().toEpochMilli() +
-//                    ";ProcessingTime;" + (Duration.between((Instant) input.f2, Instant.now()).toMillis()));
+                    ";ProcessingTime;" + (Duration.between((Instant) input.f2, Instant.now()).toMillis()));
 
             }
 
