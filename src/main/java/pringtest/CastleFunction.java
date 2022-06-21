@@ -1,5 +1,9 @@
 package pringtest;
 
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.typeinfo.TypeHint;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
@@ -24,22 +28,24 @@ public class CastleFunction extends KeyedProcessFunction
 
     private final Generalization[] config;
 
+    private transient ListState<Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>> checkpointedState;
+
     private final int k = 5;
     private final int l = 2;
     private final int delta = 10;
     private final int beta = 5;
     /* Set of non-k_s anonymized clusters */
-    private final ArrayList<Cluster> bigGamma = new ArrayList<>();
+    private ArrayList<Cluster> bigGamma = new ArrayList<>();
     /* Set of k_s anonymized clusters */
     private final ArrayList<Cluster> bigOmega = new ArrayList<>();
     /* All tuple objects currently at hold */
-    private final ArrayList<Tuple> globalTuples = new ArrayList<>();
+    private ArrayList<Tuple> globalTuples = new ArrayList<>();
     /* The average information loss per cluster */
     private float tau = 0;
     /* Position of the id value inside the tuples */
     private final int posTupleId = 1;
     /* Position of the l diversity sensible attribute */
-    private final int posSensibleAttribute = 4;
+    private final int[] posSensibleAttributes = new int[]{4,5};
 
 //    public CastleFunction(int k, int delta, int beta){
 //        this.k = k;
@@ -78,7 +84,7 @@ public class CastleFunction extends KeyedProcessFunction
             return;
         }
 
-        if(clusterWithInput.size() >= k && clusterWithInput.diversity() >= l){
+        if(clusterWithInput.size() >= k && clusterWithInput.diversity(posSensibleAttributes) >= l){
             outputCluster(clusterWithInput, output);
         }else{
             // TODO check if it is possible to have multiple clusters
@@ -106,10 +112,16 @@ public class CastleFunction extends KeyedProcessFunction
                 return;
             }
 
-            // TODO check which implementation is better
+            // Check that total big gamma size is bigger than k before merging
+            // TODO-Later check which implementation is better
             int totalGammaSize = bigGamma.stream().mapToInt(Cluster::size).sum();
 //            int count = bigGamma.stream().collect(summingInt(cluster -> cluster.size()) );
-            if(totalGammaSize < k){ // TODO it must also be checked that there exist at least 'l' distinct values of a_s among all clusters in bigGamma
+            // it must also be checked that there exist at least 'l' distinct values of a_s among all clusters in bigGamma
+            Set<Object> distinctValues = new HashSet<>();
+            for(Cluster cluster: bigGamma){
+                distinctValues.addAll(cluster.getSensibleValues(posSensibleAttributes));
+            }
+            if(totalGammaSize < k || distinctValues.size() < l){
                 // suppress t
                 // TODO find out what 'most generalized QI' exactly means
 //                output.collect(selected.generalize(input));
@@ -154,9 +166,9 @@ public class CastleFunction extends KeyedProcessFunction
 
     private void outputCluster(Cluster input, Collector output) {
         ArrayList<Cluster> clusters = new ArrayList<>();
-        if(input.size() >= (2*k) && input.diversity() >= l){
+        if(input.size() >= (2*k) && input.diversity(posSensibleAttributes) >= l){
             if(l > 0){
-                clusters.addAll(splitL(input, posSensibleAttribute));
+                clusters.addAll(splitL(input, posSensibleAttributes));
             }else{
                 clusters.addAll(split(input));
             }
@@ -249,9 +261,9 @@ public class CastleFunction extends KeyedProcessFunction
         return output;
     }
 
-    private Collection<Cluster> splitL(Cluster input, int posSensAtt) {
+    private Collection<Cluster> splitL(Cluster input, int[] posSensAtts) {
         ArrayList<Cluster> output = new ArrayList<>();
-        HashMap<Object, ArrayList<Tuple>> buckets = generateBucketsSensAtt(input, posSensAtt);
+        HashMap<Object, ArrayList<Tuple>> buckets = generateBucketsSensAtt(input, posSensAtts);
 
         if(buckets.size() < l){
             output.add(input);
@@ -354,14 +366,21 @@ public class CastleFunction extends KeyedProcessFunction
      * @param input Cluster with tuples to create HashMap
      * @return HashMap of one tuple per 'pid' sorted in 'buckets' based on 'sensible attribute'
      */
-    private HashMap<Object, ArrayList<Tuple>> generateBucketsSensAtt(Cluster input, int posSensAtt) {
+    private HashMap<Object, ArrayList<Tuple>> generateBucketsSensAtt(Cluster input, int[] posSensAtts) {
+        // TODO replace object with string if attribute combining is kept
         HashMap<Object, ArrayList<Tuple>> output = new HashMap<>();
         HashSet<Long> usedIds = new HashSet<>();
 
         for(Tuple tuple: input.getAllEntries()){
             long tupleId = tuple.getField(posTupleId);
             if(usedIds.add(tupleId)){
-                Object sensAtt = tuple.getField(posSensAtt);
+                StringBuilder builder = new StringBuilder();
+                for(int pos: posSensAtts){
+                    builder.append(tuple.getField(pos).toString());
+                    // Add seperator to prevent attribute mismatching
+                    builder.append(";");
+                }
+                String sensAtt = builder.toString();
                 output.putIfAbsent(sensAtt, new ArrayList<>());
                 output.get(sensAtt).add(tuple);
             }
@@ -414,7 +433,7 @@ public class CastleFunction extends KeyedProcessFunction
 
     /**
      * Finds the best cluster to add 'input' to.
-     * For more information see: CASTLE paper TODO add ref to paper
+     * For more information see: CASTLE paper
      * @param input the streaming tuple to add to a cluster
      * @return the best selection of all possible clusters.
      * Returns null if no fitting cluster is present.
@@ -432,9 +451,14 @@ public class CastleFunction extends KeyedProcessFunction
 
         ArrayList<Cluster> minClusters = new ArrayList<>();
         ArrayList<Cluster> okClusters = new ArrayList<>();
+        StringBuilder sb = new StringBuilder();
+        sb.append("EnlargementResults1:" + enlargementResults.toString() + "\n");
+        sb.append("EnlargementResults2:");
         for (Cluster cluster: bigGamma){
+            sb.append(cluster.enlargementValue(input) + ";");
             if(cluster.enlargementValue(input) == minValue){
                 minClusters.add(cluster);
+                sb.append("<- ADDED;");
 
                 float informationLoss = cluster.informationLossWith(input);
                 if(informationLoss <= tau){
@@ -442,10 +466,12 @@ public class CastleFunction extends KeyedProcessFunction
                 }
             }
         }
+        System.out.println(sb.toString());
 
         if(okClusters.isEmpty()){
             if(bigGamma.size() >= beta){
                 // Return any cluster in minValue with minValue
+                System.out.println("MinCluster:" + minClusters.toString());
                 return minClusters.get(0);
             } else {
                 return null;
@@ -461,11 +487,23 @@ public class CastleFunction extends KeyedProcessFunction
 
     @Override
     public void snapshotState(FunctionSnapshotContext functionSnapshotContext) throws Exception {
-
+        checkpointedState.clear();
+        // TODO check if bigOmega needs to be saved as well
+        checkpointedState.add(new Tuple2<>(bigGamma, globalTuples));
     }
 
     @Override
-    public void initializeState(FunctionInitializationContext functionInitializationContext) throws Exception {
+    public void initializeState(FunctionInitializationContext context) throws Exception {
+        ListStateDescriptor<Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>> descriptor =
+                new ListStateDescriptor<>("bigGamma-globalTuples",
+                        TypeInformation.of(new TypeHint<Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>>(){}));
 
+        checkpointedState = context.getOperatorStateStore().getListState(descriptor);
+
+        if (context.isRestored()) {
+            Tuple2<ArrayList<Cluster>, ArrayList<Tuple>> entry = (Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>) checkpointedState.get();
+            bigGamma = entry.f0;
+            globalTuples = entry.f1;
+        }
     }
 }
