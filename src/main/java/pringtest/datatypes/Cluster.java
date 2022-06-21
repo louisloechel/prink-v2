@@ -6,10 +6,7 @@ import pringtest.generalizations.AggregationGeneralizer;
 import pringtest.generalizations.NonNumericalGeneralizer;
 import pringtest.generalizations.ReductionGeneralizer;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class Cluster {
 
@@ -34,11 +31,13 @@ public class Cluster {
     }
 
     // TODO check if float is needed or can be replaced with int
+    // TODO check if calculation is correct
     public Float enlargementValue(Cluster input) {
         return informationLossWith(input) - infoLoss();
     }
 
     // TODO check if float is needed or can be replaced with int
+    // TODO check if calculation is correct
     public Float enlargementValue(Tuple input) {
         return informationLossWith(input) - infoLoss();
     }
@@ -67,7 +66,7 @@ public class Cluster {
                     infoLossWith[i] = aggreGeneralizer.generalize(input, i).f1;
                     break;
                 case NONNUMERICAL:
-                    infoLossWith[i] = nonNumGeneralizer.generalize(i).f1;
+                    infoLossWith[i] = nonNumGeneralizer.generalize(input, i).f1;
                     break;
                 default:
                     System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
@@ -105,12 +104,15 @@ public class Cluster {
     }
 
     public Tuple generalize(Tuple input) {
-//        TODO find out how to create tuple from class
-//        Class<? extends Tuple> output = Tuple.getTupleClass(config.length);
+        StringBuilder builder = new StringBuilder();
+        builder.append("Non Numerical Values: ");
+        for(Tuple tuple: entries){
+            String[] temp = tuple.getField(4);
+            builder.append(temp[temp.length-1] +  "; ");
+        }
+        builder.append("Generalized to:" + nonNumGeneralizer.generalize(4).f0);
+        System.out.println(builder.toString());
 
-//        TypeInformation<Tuple> tupleInfo = getReturnValues();
-//        Map<String, TypeInformation<?>> tupleTypes = tupleInfo.getGenericParameters();
-//        tupleTypes.get("T0");
         Object[] fieldValues = new Object[config.length];
 
         for (int i = 0; i < config.length; i++) {
@@ -194,10 +196,23 @@ public class Cluster {
      * Returns the diversity of the cluster entries
      * @return cluster diversity
      */
-    public int diversity() {
-        // TODO calculate diversity
+    public int diversity(int[] posSensibleAttributes) {
         // TODO maybe calculate on insert to save performance
-        return 10;
+        return getSensibleValues(posSensibleAttributes).size();
     }
 
+    public Collection<String> getSensibleValues(int[] posSensibleAttributes) {
+        // TODO check if better sensible attribute combiner exists
+        Set<String> output = new HashSet<>();
+        for(Tuple tuple: entries){
+            StringBuilder builder = new StringBuilder();
+            for(int pos: posSensibleAttributes){
+                builder.append(tuple.getField(pos).toString());
+                // Add seperator to prevent attribute mismatching
+                builder.append(";");
+            }
+            output.add(builder.toString());
+        }
+        return output;
+    }
 }
