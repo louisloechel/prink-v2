@@ -5,7 +5,6 @@ import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.api.java.tuple.Tuple8;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -13,9 +12,6 @@ import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
-import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.util.Collector;
 import pringtest.datatypes.TaxiFare;
 import pringtest.sources.TaxiFareGenerator;
 
@@ -27,7 +23,6 @@ import java.util.TreeMap;
 
 /**
  * Class to test out flink functionality
- * TODO remove when testing is completed
  */
 public class PrinkInformationReduction {
 
@@ -76,25 +71,16 @@ public class PrinkInformationReduction {
 
         CastleFunction.Generalization[] config = new CastleFunction.Generalization[]{
                 CastleFunction.Generalization.NONE,
-                CastleFunction.Generalization.REDUCTION,
+                CastleFunction.Generalization.NONE, //CastleFunction.Generalization.REDUCTION,
                 CastleFunction.Generalization.NONE,
                 CastleFunction.Generalization.NONE,
                 CastleFunction.Generalization.NONNUMERICAL,
-                CastleFunction.Generalization.AGGREGATION,
-                CastleFunction.Generalization.AGGREGATION,
-                CastleFunction.Generalization.AGGREGATION};
+                CastleFunction.Generalization.NONE, //CastleFunction.Generalization.AGGREGATION,
+                CastleFunction.Generalization.NONE, //CastleFunction.Generalization.AGGREGATION,
+                CastleFunction.Generalization.NONE}; //CastleFunction.Generalization.AGGREGATION};
 
         CastleFunction castle = new CastleFunction(config);
 
-/*        DataStream<Tuple4<Long, Long, String, Float>> privateFares = fares
-//                .keyBy((TaxiFare fare) -> fare.driverId)
-                .keyBy(fare -> fare.getField(0))
-                .process(castle)
-                .returns(TypeInformation.of(new TypeHint<Tuple4<Object, Object, Object, Object>>(){}));
-//                .returns(castle.getReturnValues());
-
-        privateFares.addSink(sink);
-*/
         DataStream<Tuple8<Object, Object, Object, Object,Object, Object, Object, Object>> privateFares = fares
                 .keyBy(fare -> fare.getField(0))
                 .process(castle)
@@ -106,34 +92,10 @@ public class PrinkInformationReduction {
         return env.execute("Data Reduction Job");
     }
 
-    private static class RangeAggregationProcessWindowFunction
-            extends ProcessWindowFunction<TaxiFare, Tuple4<Long, Long, String, Float>, Long, TimeWindow> {
-
-        public void process(Long key,
-                            Context context,
-                            Iterable<TaxiFare> input,
-                            Collector<Tuple4<Long, Long, String, Float>> out) {
-
-            long count = 0;
-            float minValue = 999999999;
-            float maxValue = 0;
-            for (TaxiFare in: input) {
-                minValue = Math.min(in.tip, minValue);
-                maxValue = Math.max(in.tip, maxValue);
-                count++;
-            }
-
-            for (TaxiFare in: input) {
-                out.collect(new Tuple4<>(key, in.rideId, String.format("[%.2f..%.2f]", minValue, maxValue), in.tip));
-            }
-            System.out.println("Window: " + context.window() + " count: " + count);
-        }
-    }
-
     /**
      * Convert TaxiFares into a tuple8 representation
      */
-    public class TaxiFareToTuple implements MapFunction<TaxiFare, Tuple8<Long, Long, Long, Instant, Object, Float, Float, Float>> {
+    public static class TaxiFareToTuple implements MapFunction<TaxiFare, Tuple8<Long, Long, Long, Instant, Object, Float, Float, Float>> {
 
         @Override
         public Tuple8<Long, Long, Long, Instant, Object, Float, Float, Float> map(TaxiFare input) {
@@ -142,7 +104,7 @@ public class PrinkInformationReduction {
         }
     }
 
-    public class TimerSink extends RichSinkFunction<Tuple8<Object, Object, Object, Object,Object, Object, Object, Object>> {
+    public static class TimerSink extends RichSinkFunction<Tuple8<Object, Object, Object, Object,Object, Object, Object, Object>> {
 
         int reportInterval = 1000;
         int counter = 0;
@@ -152,7 +114,7 @@ public class PrinkInformationReduction {
         ArrayList<Long> seenIds = new ArrayList<>();
 
         @Override
-        public void invoke(Tuple8<Object, Object, Object, Object,Object, Object, Object, Object> input, Context context) throws Exception {
+        public void invoke(Tuple8<Object, Object, Object, Object,Object, Object, Object, Object> input, Context context) {
 
             long processingTime = Duration.between((Instant) input.f2, Instant.now()).toMillis();
             seenIds.add((Long) input.f0);

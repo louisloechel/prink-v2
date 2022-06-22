@@ -125,12 +125,12 @@ public class DataGenerator {
     public String[] paymentTypeArray() {
         Random random = new Random();
         switch (random.nextInt(11)){
-            case 0:
-                return new String[]{"CARD"};
-            case 1:
-                return new String[]{"CASH"};
-            case 2:
-                return new String[]{"CARD", "PAYPAL"};
+//            case 0:
+//                return new String[]{"CARD"};
+//            case 1:
+//                return new String[]{"CASH"};
+//            case 2:
+//                return new String[]{"CARD", "PAYPAL"};
             case 3:
                 return new String[]{"CARD","APPLE PAY"};
             case 4:
@@ -148,7 +148,7 @@ public class DataGenerator {
             case 10:
                 return new String[]{"CARD","PAYPAL","Direktzahlung"};
             default:
-                return new String[]{"No payment"};
+                return new String[]{"9-Euro Ticket","No payment"};
         }
     }
 

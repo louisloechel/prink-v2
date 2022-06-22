@@ -252,7 +252,8 @@ public class NonNumericalGeneralizer implements BaseGeneralizer{
          */
         private void removeTempNodes() {
             coverageTemporary = coverage;
-            children.removeIf(child -> child.isTemporary);
+            // TODO test if keeping "empty" nodes improves infoLoss
+//            children.removeIf(child -> child.isTemporary);
             for(TreeNode child: children){
                 child.removeTempNodes();
             }

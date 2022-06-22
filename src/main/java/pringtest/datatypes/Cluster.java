@@ -21,7 +21,7 @@ public class Cluster {
     // DEBUG params
     boolean showRemoveEntry = false;
     boolean showAddedEntry = false;
-    boolean showInfoLoss = false;
+    boolean showInfoLoss = true;
 
     public Cluster(CastleFunction.Generalization[] config) {
         this.config = config;

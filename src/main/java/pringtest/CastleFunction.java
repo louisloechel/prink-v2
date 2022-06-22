@@ -2,6 +2,8 @@ package pringtest;
 
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.state.MapStateDescriptor;
+import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple;
@@ -11,6 +13,7 @@ import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
+import pringtest.datatypes.CastleRule;
 import pringtest.datatypes.Cluster;
 
 import java.time.Instant;
@@ -27,6 +30,12 @@ public class CastleFunction extends KeyedProcessFunction
     }
 
     private final Generalization[] config;
+
+    private final MapStateDescriptor<Integer, CastleRule> ruleStateDescriptor =
+            new MapStateDescriptor<>(
+                    "RulesBroadcastState",
+                    BasicTypeInfo.INT_TYPE_INFO,
+                    TypeInformation.of(new TypeHint<CastleRule>(){}));
 
     private transient ListState<Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>> checkpointedState;
 
@@ -451,14 +460,14 @@ public class CastleFunction extends KeyedProcessFunction
 
         ArrayList<Cluster> minClusters = new ArrayList<>();
         ArrayList<Cluster> okClusters = new ArrayList<>();
-        StringBuilder sb = new StringBuilder();
-        sb.append("EnlargementResults1:" + enlargementResults.toString() + "\n");
-        sb.append("EnlargementResults2:");
+//        StringBuilder sb = new StringBuilder();
+//        sb.append("EnlargementResults1:" + enlargementResults.toString() + "\n");
+//        sb.append("EnlargementResults2:");
         for (Cluster cluster: bigGamma){
-            sb.append(cluster.enlargementValue(input) + ";");
+//            sb.append(cluster.enlargementValue(input) + ";");
             if(cluster.enlargementValue(input) == minValue){
                 minClusters.add(cluster);
-                sb.append("<- ADDED;");
+//                sb.append("<- ADDED;");
 
                 float informationLoss = cluster.informationLossWith(input);
                 if(informationLoss <= tau){
@@ -466,7 +475,7 @@ public class CastleFunction extends KeyedProcessFunction
                 }
             }
         }
-        System.out.println(sb.toString());
+//        System.out.println(sb.toString());
 
         if(okClusters.isEmpty()){
             if(bigGamma.size() >= beta){
