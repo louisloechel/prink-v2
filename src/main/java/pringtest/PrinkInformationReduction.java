@@ -3,18 +3,27 @@ package pringtest;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.state.MapStateDescriptor;
+import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.io.TypeSerializerInputFormat;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple8;
+import org.apache.flink.streaming.api.datastream.BroadcastStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
+import pringtest.datatypes.CastleRule;
 import pringtest.datatypes.TaxiFare;
+import pringtest.datatypes.TreeNode;
+import pringtest.generalizations.NonNumericalGeneralizer;
 import pringtest.sources.TaxiFareGenerator;
 
+import java.lang.reflect.Array;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -75,14 +84,53 @@ public class PrinkInformationReduction {
                 CastleFunction.Generalization.NONE,
                 CastleFunction.Generalization.NONE,
                 CastleFunction.Generalization.NONNUMERICAL,
-                CastleFunction.Generalization.NONE, //CastleFunction.Generalization.AGGREGATION,
+                CastleFunction.Generalization.AGGREGATION,
                 CastleFunction.Generalization.NONE, //CastleFunction.Generalization.AGGREGATION,
                 CastleFunction.Generalization.NONE}; //CastleFunction.Generalization.AGGREGATION};
 
         CastleFunction castle = new CastleFunction(config);
 
+        MapStateDescriptor<Integer, CastleRule> ruleStateDescriptor =
+                new MapStateDescriptor<>(
+                        "RulesBroadcastState",
+                        BasicTypeInfo.INT_TYPE_INFO,
+                        TypeInformation.of(new TypeHint<CastleRule>(){}));
+
+        // Create treeEntries for non-numerical generalizer
+        ArrayList<String[]> treeEntries = new ArrayList<>();
+        treeEntries.add(new String[]{"CARD","APPLE PAY"});
+        treeEntries.add(new String[]{"CASH","Banknotes"});
+        treeEntries.add(new String[]{"CASH","Coins"});
+        treeEntries.add(new String[]{"CARD","CREDIT CARD"});
+
+        treeEntries.add(new String[]{"CARD","MAESTRO CARD"});
+        treeEntries.add(new String[]{"CARD","PAYPAL","Ratenzahlung"});
+        treeEntries.add(new String[]{"CARD","PAYPAL","Auf Rechnung"});
+        treeEntries.add(new String[]{"CARD","PAYPAL","Direktzahlung"});
+        treeEntries.add(new String[]{"9-Euro Ticket","No payment"});
+
+        // broadcast the rules and create the broadcast state
+        ArrayList<CastleRule> rules = new ArrayList<>();
+        rules.add(new CastleRule(0, CastleFunction.Generalization.NONE));
+        rules.add(new CastleRule(1, CastleFunction.Generalization.NONE));
+        rules.add(new CastleRule(2, CastleFunction.Generalization.NONE));
+        rules.add(new CastleRule(3, CastleFunction.Generalization.NONE));
+        rules.add(new CastleRule(4, CastleFunction.Generalization.NONNUMERICAL, treeEntries));
+        rules.add(new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f)));
+        rules.add(new CastleRule(6, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,200f)));
+        rules.add(new CastleRule(7, CastleFunction.Generalization.NONE, Tuple2.of(10f,500f)));
+
+        DataStream<CastleRule> ruleStream = env.fromCollection(rules);
+
+        // TODO add timed check. See https://nightlies.apache.org/flink/flink-docs-master/docs/dev/datastream/overview/#data-sources
+//        String rulePath = "";
+//        DataStream<CastleRule> ruleStream = env.readFile(new TypeSerializerInputFormat<>(TypeInformation.of(new TypeHint<CastleRule>(){})), rulePath);
+        BroadcastStream<CastleRule> ruleBroadcastStream = ruleStream
+                .broadcast(ruleStateDescriptor);
+
         DataStream<Tuple8<Object, Object, Object, Object,Object, Object, Object, Object>> privateFares = fares
                 .keyBy(fare -> fare.getField(0))
+                .connect(ruleBroadcastStream)
                 .process(castle)
                 .returns(TypeInformation.of(new TypeHint<Tuple8<Object, Object, Object, Object,Object, Object, Object, Object>>(){}));
 

@@ -1,7 +1,6 @@
 package pringtest.datatypes;
 
 import org.apache.flink.api.java.tuple.*;
-import pringtest.CastleFunction;
 import pringtest.generalizations.AggregationGeneralizer;
 import pringtest.generalizations.NonNumericalGeneralizer;
 import pringtest.generalizations.ReductionGeneralizer;
@@ -10,7 +9,8 @@ import java.util.*;
 
 public class Cluster {
 
-    private final CastleFunction.Generalization[] config;
+//    private final CastleFunction.Generalization[] config;
+    private final CastleRule[] config;
 
     private final ArrayList<Tuple> entries = new ArrayList<>();
 
@@ -23,8 +23,8 @@ public class Cluster {
     boolean showAddedEntry = false;
     boolean showInfoLoss = true;
 
-    public Cluster(CastleFunction.Generalization[] config) {
-        this.config = config;
+    public Cluster(CastleRule[] rules) {
+        this.config = (rules == null) ? new CastleRule[]{} : rules;
         aggreGeneralizer = new AggregationGeneralizer(config);
         reductGeneralizer = new ReductionGeneralizer(this);
         nonNumGeneralizer = new NonNumericalGeneralizer(config);
@@ -55,7 +55,7 @@ public class Cluster {
         double[] infoLossWith = new double[config.length];
 
         for (int i = 0; i < config.length; i++) {
-            switch (config[i]) {
+            switch (config[i].getGeneralizationType()) {
                 case NONE:
                     infoLossWith[i] = 0;
                     break;
@@ -81,7 +81,7 @@ public class Cluster {
         double[] infoLoss = new double[config.length];
 
         for (int i = 0; i < config.length; i++) {
-            switch (config[i]) {
+            switch (config[i].getGeneralizationType()) {
                 case NONE:
                     infoLoss[i] = 0;
                     break;
@@ -116,7 +116,7 @@ public class Cluster {
         Object[] fieldValues = new Object[config.length];
 
         for (int i = 0; i < config.length; i++) {
-            switch (config[i]) {
+            switch (config[i].getGeneralizationType()) {
                 case NONE:
                     fieldValues[i] = input.getField(i);
                     break;

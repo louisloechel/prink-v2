@@ -1,8 +1,6 @@
 package pringtest;
 
-import org.apache.flink.api.common.state.ListState;
-import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.state.MapStateDescriptor;
+import org.apache.flink.api.common.state.*;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -12,6 +10,7 @@ import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
 import org.apache.flink.util.Collector;
 import pringtest.datatypes.CastleRule;
 import pringtest.datatypes.Cluster;
@@ -19,7 +18,7 @@ import pringtest.datatypes.Cluster;
 import java.time.Instant;
 import java.util.*;
 
-public class CastleFunction extends KeyedProcessFunction
+public class CastleFunction extends KeyedBroadcastProcessFunction
         implements CheckpointedFunction {
 
     public enum Generalization {
@@ -29,7 +28,7 @@ public class CastleFunction extends KeyedProcessFunction
         NONE
     }
 
-    private final Generalization[] config;
+    private CastleRule[] rules;
 
     private final MapStateDescriptor<Integer, CastleRule> ruleStateDescriptor =
             new MapStateDescriptor<>(
@@ -63,19 +62,47 @@ public class CastleFunction extends KeyedProcessFunction
 //    }
 
     public CastleFunction(Generalization[] config){
-        this.config = config;
+//        this.config = config;
     }
 
     @Override
-    public void processElement(Object input, Context context, Collector output) {
+    public void processBroadcastElement(Object input, Context context, Collector collector) throws Exception {
+        CastleRule rule = (CastleRule) input;
+        System.out.println("RULE TRANSMITTED: Position:" + rule.getPosition() + " rule:" + rule.toString());
 
+        BroadcastState<Integer, CastleRule> currentRuleState = context.getBroadcastState(ruleStateDescriptor);
+
+        // Convert rule map into sorted array
+        ArrayList<CastleRule> newRuleArray = new ArrayList<>();
+        for(int i = 0; i < rule.getPosition(); i++) {
+            if(currentRuleState.contains(i)){
+                newRuleArray.add(i, currentRuleState.get(i));
+            }else{
+                CastleRule missingRule = new CastleRule(i, Generalization.NONE);
+                context.getBroadcastState(ruleStateDescriptor).put(i, missingRule);
+                newRuleArray.add(i, missingRule);
+            }
+        }
+        context.getBroadcastState(ruleStateDescriptor).put(rule.getPosition(), rule);
+        newRuleArray.add(rule.getPosition(), rule);
+
+        rules = newRuleArray.toArray(new CastleRule[]{});
+        System.out.println("RULE TRANSMISSION: Updated rules:");
+        for(CastleRule r: rules){
+            System.out.println("Rule " + r.getPosition() + ": " + r.toString());
+        }
+    }
+
+    @Override
+    public void processElement(Object input, ReadOnlyContext context, Collector output) {
+        
         Tuple tuple = (Tuple) input;
-        tuple.setField(Instant.now(), 2);
+        tuple.setField(Instant.now(), 2); // TODO remove after testing
 
         Cluster bestCluster = bestSelection(tuple);
         if(bestCluster == null){
             // Create a new cluster on 'input' and insert it into bigGamma
-            bestCluster = new Cluster(config);
+            bestCluster = new Cluster(rules);
             bigGamma.add(bestCluster);
         }
         // Push 'input' into bestCluster
@@ -225,7 +252,7 @@ public class CastleFunction extends KeyedProcessFunction
             Tuple selectedTuple = selectedBucket.get(0);
 
             // Create new sub-cluster with selectedTuple and remove it from original entry
-            Cluster newCluster = new Cluster(config);
+            Cluster newCluster = new Cluster(rules);
             newCluster.addEntry(selectedTuple);
             selectedBucket.remove(0);
 
@@ -294,7 +321,7 @@ public class CastleFunction extends KeyedProcessFunction
             Tuple selectedTuple = selectedBucket.get(randomNum);
 
             // Create new sub-cluster with selectedTuple and remove it from original entry
-            Cluster newCluster = new Cluster(config);
+            Cluster newCluster = new Cluster(rules);
             newCluster.addEntry(selectedTuple);
             selectedBucket.remove(randomNum);
 
@@ -480,7 +507,6 @@ public class CastleFunction extends KeyedProcessFunction
         if(okClusters.isEmpty()){
             if(bigGamma.size() >= beta){
                 // Return any cluster in minValue with minValue
-                System.out.println("MinCluster:" + minClusters.toString());
                 return minClusters.get(0);
             } else {
                 return null;
@@ -513,6 +539,8 @@ public class CastleFunction extends KeyedProcessFunction
             Tuple2<ArrayList<Cluster>, ArrayList<Tuple>> entry = (Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>) checkpointedState.get();
             bigGamma = entry.f0;
             globalTuples = entry.f1;
+
+            // TODO recreate rules array (see broadcast input)
         }
     }
 }

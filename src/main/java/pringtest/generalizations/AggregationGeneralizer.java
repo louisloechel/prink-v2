@@ -3,17 +3,26 @@ package pringtest.generalizations;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import pringtest.CastleFunction;
+import pringtest.datatypes.CastleRule;
+import pringtest.datatypes.TreeNode;
 
 import java.util.HashMap;
 import java.util.List;
 
 public class AggregationGeneralizer implements BaseGeneralizer{
 
-    private final CastleFunction.Generalization[] config;
+    private final CastleRule[] config;
     private final HashMap<Integer, Tuple2<Float, Float>> aggregationRanges = new HashMap<>();
+    private final HashMap<Integer, Tuple2<Float, Float>> domainRanges = new HashMap<>();
 
-    public AggregationGeneralizer(CastleFunction.Generalization[] config){
-        this.config = config;
+    public AggregationGeneralizer(CastleRule[] rules){
+        this.config = rules;
+        // Add rule defined domain ranges to the generalizer
+        for(int i = 0; i < rules.length; i++){
+            if(rules[i].getGeneralizationType() == CastleFunction.Generalization.AGGREGATION && rules[i].getDomain() != null){
+                domainRanges.put(i, rules[i].getDomain());
+            }
+        }
     }
 
     /**
@@ -25,9 +34,7 @@ public class AggregationGeneralizer implements BaseGeneralizer{
     @Override
     public Tuple2<Tuple2<Float, Float>, Float> generalize(int pos) {
         Tuple2<Float, Float> borders = Tuple2.of(aggregationRanges.get(pos).f0, aggregationRanges.get(pos).f1);
-        // TODO update with more accurate information loss function
-        float infoLoss = aggregationRanges.get(pos).f1 - aggregationRanges.get(pos).f0;
-        return Tuple2.of(borders, infoLoss);
+        return Tuple2.of(borders, infoLoss(pos, aggregationRanges.get(pos).f0, aggregationRanges.get(pos).f1));
     }
 
     @Override
@@ -40,9 +47,18 @@ public class AggregationGeneralizer implements BaseGeneralizer{
             max = Math.max(input.getField(pos), max);
         }
         Tuple2<Float, Float> borders = Tuple2.of(min, max);
-        // TODO update with more accurate information loss function
-        float infoLoss = max - min;
-        return Tuple2.of(borders, infoLoss);
+        return Tuple2.of(borders, infoLoss(pos, min, max));
+    }
+
+    /**
+     * Calculate the information loss using the domain range and the min, max values of the generalization
+     * @param pos attribute position
+     * @param min min value of generalization
+     * @param max max value of generalization
+     * @return information loss of the give position and values
+     */
+    private float infoLoss(int pos, float min, float max){
+        return ((max - min) / (domainRanges.get(pos).f1 - domainRanges.get(pos).f0));
     }
     
     /**
@@ -51,14 +67,29 @@ public class AggregationGeneralizer implements BaseGeneralizer{
      */
     public void updateAggregationBounds(Tuple input) {
         for (int i = 0; i < config.length; i++) {
-            if (config[i] == CastleFunction.Generalization.AGGREGATION) {
+            if (config[i].getGeneralizationType() == CastleFunction.Generalization.AGGREGATION) {
                 if (!aggregationRanges.containsKey(i)) {
                     aggregationRanges.put(i, new Tuple2<>(input.getField(i), input.getField(i)));
                 } else {
                     aggregationRanges.get(i).f0 = Math.min(input.getField(i), aggregationRanges.get(i).f0);
                     aggregationRanges.get(i).f1 = Math.max(input.getField(i), aggregationRanges.get(i).f1);
                 }
+                updateDomainBounds(i);
             }
+        }
+    }
+
+    /**
+     * Checks if new added values are bigger than the defined domain ranges.
+     * If that is the case the domain range gets set to the new min/max values
+     * @param pos parameter position
+     */
+    private void updateDomainBounds(int pos){
+        if(domainRanges.containsKey(pos)){
+            domainRanges.get(pos).f0 = Math.min(aggregationRanges.get(pos).f0, domainRanges.get(pos).f0);
+            domainRanges.get(pos).f1 = Math.max(aggregationRanges.get(pos).f0, domainRanges.get(pos).f1);
+        }else{
+            domainRanges.put(pos, Tuple2.of(aggregationRanges.get(pos).f0, aggregationRanges.get(pos).f1));
         }
     }
 }
