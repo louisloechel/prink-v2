@@ -11,7 +11,7 @@ import java.util.stream.Stream;
 
 public class ReductionGeneralizer implements BaseGeneralizer{
 
-    private Cluster cluster;
+    private final Cluster cluster;
 
     public ReductionGeneralizer(Cluster cluster){
         this.cluster = cluster;
@@ -68,6 +68,7 @@ public class ReductionGeneralizer implements BaseGeneralizer{
             if (Stream.of(ids).distinct().count() <= 1) break;
 
         }
-        return Tuple2.of(ids[0], numReducted);
+        float infoLoss = (numReducted > 0) ? (numReducted/maxLength) : 0 ;
+        return Tuple2.of(ids[0], infoLoss);
     }
 }
