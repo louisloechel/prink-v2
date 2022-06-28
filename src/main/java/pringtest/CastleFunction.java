@@ -53,7 +53,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     /* Position of the id value inside the tuples */
     private final int posTupleId = 1;
     /* Position of the l diversity sensible attribute */
-    private final int[] posSensibleAttributes = new int[]{1};
+    private int[] posSensibleAttributes = new int[]{1};
 
 //    public CastleFunction(int k, int l, int delta, int beta){
 //        this.k = k;
@@ -86,6 +86,15 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         newRuleArray.add(rule.getPosition(), rule);
 
         rules = newRuleArray.toArray(new CastleRule[]{});
+
+        // Redefine sensible attribute positions
+        ArrayList<Integer> newPos = new ArrayList<>();
+        for(int i = 0; i < rules.length; i++) {
+            if(rules[i].getGeneralizationType() != Generalization.NONE) newPos.add(i);
+        }
+        posSensibleAttributes = newPos.stream().mapToInt(i -> i).toArray();
+
+        // TODO-Later remove after testing
         System.out.println("RULE TRANSMISSION: Updated rules:");
         for(CastleRule r: rules){
             System.out.println("Rule " + r.getPosition() + ": " + r.toString());
