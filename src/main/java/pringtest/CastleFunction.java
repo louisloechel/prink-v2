@@ -53,16 +53,15 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     /* Position of the id value inside the tuples */
     private final int posTupleId = 1;
     /* Position of the l diversity sensible attribute */
-    private final int[] posSensibleAttributes = new int[]{4,5};
+    private final int[] posSensibleAttributes = new int[]{1};
 
-//    public CastleFunction(int k, int delta, int beta){
+//    public CastleFunction(int k, int l, int delta, int beta){
 //        this.k = k;
 //        this.delta = delta;
 //        this.beta = beta;
 //    }
 
-    public CastleFunction(Generalization[] config){
-//        this.config = config;
+    public CastleFunction(){
     }
 
     @Override
@@ -95,9 +94,12 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
     @Override
     public void processElement(Object input, ReadOnlyContext context, Collector output) {
-        
+
         Tuple tuple = (Tuple) input;
         tuple.setField(Instant.now(), 2); // TODO remove after testing
+
+        // Do not process any tuples without a rule set to follow
+        if(rules == null) return;
 
         Cluster bestCluster = bestSelection(tuple);
         if(bestCluster == null){
@@ -215,7 +217,12 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
         for(Cluster cluster: clusters){
             for(Tuple tuple: cluster.getAllEntries()){
-                output.collect(cluster.generalize(tuple));
+                // TODO set values of tuples without rules to null
+                try {
+                    output.collect(cluster.generalize(tuple));
+                }catch (Exception e){
+                    System.out.println("FIXME: Output.collect throws error:" + e.toString() + " with generalization:" + cluster.generalize(tuple) + " rule length:" + ((rules != null) ? rules.length : 0));
+                }
 //                TODO check if entry should be deleted here or with the deletion of the cluster below (check for calculation of tau)
 //                cluster.removeEntry(tuple);
                 globalTuples.remove(tuple);
@@ -338,10 +345,12 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 // Sort enlargement values to select the tuples with the smallest enlargements
                 enlargement.sort(Comparator.comparing(o -> (o.f1)));
 
-                // Select first (k*(bucket.size()/sum)) tuples and move them to the new cluster
-                for(int i = 0; i < (k*(bucket.size()/sum)); i++) {
-                    newCluster.addEntry(enlargement.get(i).f0);
-                    bucket.remove(enlargement.get(i).f0);
+                // Select first (k*(bucket.size()/sum)) tuples or at least 1 and move them to the new cluster
+                if(bucket.size() > 0) {
+                    for (int i = 0; i < Math.max(k * (bucket.size() / sum), 1); i++) {
+                        newCluster.addEntry(enlargement.get(i).f0);
+                        bucket.remove(enlargement.get(i).f0);
+                    }
                 }
 
                 // Remove buckets that have no values in them
@@ -351,6 +360,12 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             for(Object key: bucketKeysToDelete) buckets.remove(key);
 
             output.add(newCluster);
+
+            // Recalculate sum
+            sum = 0;
+            for(ArrayList<Tuple> bucket: buckets.values()){
+                sum = sum + bucket.size();
+            }
         }
 
         ArrayList<Object> bucketKeysToDelete = new ArrayList<>();
