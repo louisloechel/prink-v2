@@ -78,18 +78,6 @@ public class PrinkInformationReduction {
                                 .withTimestampAssigner((fare, t) -> fare.getEventTimeMillis()))
                 .map(new TaxiFareToTuple());
 
-        CastleFunction.Generalization[] config = new CastleFunction.Generalization[]{
-                CastleFunction.Generalization.NONE,
-                CastleFunction.Generalization.NONE, //CastleFunction.Generalization.REDUCTION,
-                CastleFunction.Generalization.NONE,
-                CastleFunction.Generalization.NONE,
-                CastleFunction.Generalization.NONNUMERICAL,
-                CastleFunction.Generalization.AGGREGATION,
-                CastleFunction.Generalization.NONE, //CastleFunction.Generalization.AGGREGATION,
-                CastleFunction.Generalization.NONE}; //CastleFunction.Generalization.AGGREGATION};
-
-        CastleFunction castle = new CastleFunction(config);
-
         MapStateDescriptor<Integer, CastleRule> ruleStateDescriptor =
                 new MapStateDescriptor<>(
                         "RulesBroadcastState",
@@ -112,13 +100,14 @@ public class PrinkInformationReduction {
         // broadcast the rules and create the broadcast state
         ArrayList<CastleRule> rules = new ArrayList<>();
         rules.add(new CastleRule(0, CastleFunction.Generalization.NONE));
-        rules.add(new CastleRule(1, CastleFunction.Generalization.NONE));
+//        rules.add(new CastleRule(1, CastleFunction.Generalization.NONE));
+        rules.add(new CastleRule(1, CastleFunction.Generalization.REDUCTION));
         rules.add(new CastleRule(2, CastleFunction.Generalization.NONE));
         rules.add(new CastleRule(3, CastleFunction.Generalization.NONE));
         rules.add(new CastleRule(4, CastleFunction.Generalization.NONNUMERICAL, treeEntries));
         rules.add(new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f)));
         rules.add(new CastleRule(6, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,200f)));
-        rules.add(new CastleRule(7, CastleFunction.Generalization.NONE, Tuple2.of(10f,500f)));
+        rules.add(new CastleRule(7, CastleFunction.Generalization.AGGREGATION, Tuple2.of(10f,500f)));
 
         DataStream<CastleRule> ruleStream = env.fromCollection(rules);
 
@@ -131,7 +120,8 @@ public class PrinkInformationReduction {
         DataStream<Tuple8<Object, Object, Object, Object,Object, Object, Object, Object>> privateFares = fares
                 .keyBy(fare -> fare.getField(0))
                 .connect(ruleBroadcastStream)
-                .process(castle)
+                .process(new CastleFunction())
+//                .process(new CompareProcessingFunction())
                 .returns(TypeInformation.of(new TypeHint<Tuple8<Object, Object, Object, Object,Object, Object, Object, Object>>(){}));
 
         privateFares.addSink(new TimerSink());
@@ -171,7 +161,7 @@ public class PrinkInformationReduction {
             minTime = Math.min(minTime, processingTime);
             maxTime = Math.max(maxTime, processingTime);
 
-            if(processingTime >= 0 && processingTime < 50){
+            if(false && processingTime >= 0 && processingTime < 50){
                 rangeCounter.merge("A| 0ms - 49ms", 1, Integer::sum);
             }else if (processingTime >= 50 && processingTime < 100){
                 rangeCounter.merge("B| 50ms - 99ms", 1, Integer::sum);
@@ -205,7 +195,7 @@ public class PrinkInformationReduction {
                 rangeCounter.merge("P| 2500ms - >2500ms", 1, Integer::sum);
             }
 
-            if((counter % reportInterval) == 0){
+            if(false && (counter % reportInterval) == 0){
                 System.out.println(input.toString());
                 System.out.println("------------------ REPORT Sink:" + this + " --------------------");
                 for (Map.Entry<String, Integer> entry : rangeCounter.entrySet()) {
@@ -223,10 +213,13 @@ public class PrinkInformationReduction {
                 System.out.println("---------------------------------------------------");
 
             }else{
-                System.out.println(input.toString() +
+                System.out.println(
+                    input.f0 + ";" +
+                    input.toString() +
 //                    ";" + ((Instant) input.f3).toEpochMilli() +
 //                    ";" + Instant.now().toEpochMilli() +
-                    ";ProcessingTime;" + (Duration.between((Instant) input.f2, Instant.now()).toMillis()));
+                    ";[Data Desc.]" +
+                    ";" + (Duration.between((Instant) input.f2, Instant.now()).toMillis()));
 
             }
 

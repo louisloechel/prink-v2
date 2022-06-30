@@ -25,6 +25,9 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         REDUCTION,
         AGGREGATION,
         NONNUMERICAL,
+        REDUCTION_WITHOUT_GENERALIZATION,
+        AGGREGATION_WITHOUT_GENERALIZATION,
+        NONNUMERICAL_WITHOUT_GENERALIZATION,
         NONE
     }
 

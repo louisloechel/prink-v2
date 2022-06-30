@@ -9,7 +9,6 @@ import java.util.*;
 
 public class Cluster {
 
-//    private final CastleFunction.Generalization[] config;
     private final CastleRule[] config;
 
     private final ArrayList<Tuple> entries = new ArrayList<>();
@@ -21,24 +20,24 @@ public class Cluster {
     // DEBUG params
     boolean showRemoveEntry = false;
     boolean showAddedEntry = false;
-    boolean showInfoLoss = true;
+    boolean showInfoLoss = false;
+    boolean showEnlargement = false;
 
     public Cluster(CastleRule[] rules) {
+        // TODO-Later maybe remove since values without rules are rejected
         this.config = (rules == null) ? new CastleRule[]{} : rules;
         aggreGeneralizer = new AggregationGeneralizer(config);
         reductGeneralizer = new ReductionGeneralizer(this);
         nonNumGeneralizer = new NonNumericalGeneralizer(config);
     }
 
-    // TODO check if float is needed or can be replaced with int
-    // TODO check if calculation is correct
     public Float enlargementValue(Cluster input) {
+        if(showEnlargement) System.out.println("Enlargement Value Cluster:" + (informationLossWith(input) - infoLoss()));
         return informationLossWith(input) - infoLoss();
     }
 
-    // TODO check if float is needed or can be replaced with int
-    // TODO check if calculation is correct
     public Float enlargementValue(Tuple input) {
+        if(showEnlargement) System.out.println("Enlargement Value Tuple:" + (informationLossWith(input) - infoLoss()));
         return informationLossWith(input) - infoLoss();
     }
 
@@ -50,7 +49,6 @@ public class Cluster {
         return informationLossWith(Collections.singletonList(input));
     }
 
-    // TODO check if informationLossWith is the total loss or only in relation to input
     private float informationLossWith(List<Tuple> input) {
         double[] infoLossWith = new double[config.length];
 
@@ -60,12 +58,15 @@ public class Cluster {
                     infoLossWith[i] = 0;
                     break;
                 case REDUCTION:
+                case REDUCTION_WITHOUT_GENERALIZATION:
                     infoLossWith[i] = reductGeneralizer.generalize(input, i).f1;
                     break;
                 case AGGREGATION:
+                case AGGREGATION_WITHOUT_GENERALIZATION:
                     infoLossWith[i] = aggreGeneralizer.generalize(input, i).f1;
                     break;
                 case NONNUMERICAL:
+                case NONNUMERICAL_WITHOUT_GENERALIZATION:
                     infoLossWith[i] = nonNumGeneralizer.generalize(input, i).f1;
                     break;
                 default:
@@ -73,8 +74,8 @@ public class Cluster {
             }
         }
         double sumWith = Arrays.stream(infoLossWith).sum();
-        if(showInfoLoss) System.out.println("InfoLossTuple with: " + Arrays.toString(infoLossWith));
-        return (float) sumWith;
+        if(showInfoLoss) System.out.println("InfoLossTuple with: " + Arrays.toString(infoLossWith) + " Result:" + ((float) sumWith) / config.length);
+        return ((float) sumWith) / config.length;
     }
 
     public float infoLoss() {
@@ -86,12 +87,15 @@ public class Cluster {
                     infoLoss[i] = 0;
                     break;
                 case REDUCTION:
+                case REDUCTION_WITHOUT_GENERALIZATION:
                     infoLoss[i] = reductGeneralizer.generalize(i).f1;
                     break;
                 case AGGREGATION:
+                case AGGREGATION_WITHOUT_GENERALIZATION:
                     infoLoss[i] = aggreGeneralizer.generalize(i).f1;
                     break;
                 case NONNUMERICAL:
+                case NONNUMERICAL_WITHOUT_GENERALIZATION:
                     infoLoss[i] = nonNumGeneralizer.generalize(i).f1;
                     break;
                 default:
@@ -99,27 +103,16 @@ public class Cluster {
             }
         }
         double sumWith = Arrays.stream(infoLoss).sum();
-        if(showInfoLoss) System.out.println("InfoLoss with: " + Arrays.toString(infoLoss));
-        return (float) sumWith;
+        if(showInfoLoss) System.out.println("InfoLoss with: " + Arrays.toString(infoLoss) + " Result:" + ((float) sumWith) / config.length);
+        return ((float) sumWith) / config.length;
     }
 
     public Tuple generalize(Tuple input) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("Non Numerical Values: ");
-        for(Tuple tuple: entries){
-            String[] temp = tuple.getField(4);
-            builder.append(temp[temp.length-1] +  "; ");
-        }
-        builder.append("Generalized to:" + nonNumGeneralizer.generalize(4).f0);
-        System.out.println(builder.toString());
 
         Object[] fieldValues = new Object[config.length];
 
         for (int i = 0; i < config.length; i++) {
             switch (config[i].getGeneralizationType()) {
-                case NONE:
-                    fieldValues[i] = input.getField(i);
-                    break;
                 case REDUCTION:
                     fieldValues[i] = reductGeneralizer.generalize(i).f0;
                     break;
@@ -129,25 +122,23 @@ public class Cluster {
                 case NONNUMERICAL:
                     fieldValues[i] = nonNumGeneralizer.generalize(i).f0;
                     break;
+                case NONE:
+                case REDUCTION_WITHOUT_GENERALIZATION:
+                case AGGREGATION_WITHOUT_GENERALIZATION:
+                case NONNUMERICAL_WITHOUT_GENERALIZATION:
+                    fieldValues[i] = input.getField(i);
+                    break;
                 default:
                     System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
             }
         }
-        // TODO extend to cover all 26 Tuple classes
-        switch (config.length) {
-            case 1:
-                return Tuple1.of(fieldValues[0]);
-            case 2:
-                return Tuple2.of(fieldValues[0], fieldValues[1]);
-            case 3:
-                return Tuple3.of(fieldValues[0], fieldValues[1], fieldValues[2]);
-            case 4:
-                return Tuple4.of(fieldValues[0], fieldValues[1], fieldValues[2], fieldValues[3]);
-            case 8:
-                return Tuple8.of(fieldValues[0], fieldValues[1], fieldValues[2], fieldValues[3], fieldValues[4], fieldValues[5], fieldValues[6], fieldValues[7]);
-            default:
-                return new Tuple0();
+        // Return new tuple with generalized field values
+        int inputArity = input.getArity();
+        Tuple output = Tuple.newInstance(inputArity);
+        for (int i = 0; i < Math.min(inputArity, config.length); i++) {
+            output.setField(fieldValues[i], i);
         }
+        return output;
     }
 
     public void addEntry(Tuple input) {
@@ -208,7 +199,7 @@ public class Cluster {
             StringBuilder builder = new StringBuilder();
             for(int pos: posSensibleAttributes){
                 builder.append(tuple.getField(pos).toString());
-                // Add seperator to prevent attribute mismatching
+                // Add separator to prevent attribute mismatching
                 builder.append(";");
             }
             output.add(builder.toString());
