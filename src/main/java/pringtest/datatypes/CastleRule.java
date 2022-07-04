@@ -11,22 +11,26 @@ public class CastleRule {
     private final CastleFunction.Generalization generalizationType;
     private Tuple2<Float, Float> domain;
     private ArrayList<String[]> treeEntries;
+    private boolean isSensibleAttribute;
 
-    public CastleRule(int position, CastleFunction.Generalization generalizationType, Tuple2<Float,Float> domain){
+    public CastleRule(int position, CastleFunction.Generalization generalizationType, Tuple2<Float,Float> domain, boolean isSensibleAttribute){
         this.position = position;
         this.generalizationType = generalizationType;
         this.domain = domain;
+        this.isSensibleAttribute = isSensibleAttribute;
     }
 
-    public CastleRule(int position, CastleFunction.Generalization generalizationType, ArrayList<String[]> treeEntries){
+    public CastleRule(int position, CastleFunction.Generalization generalizationType, ArrayList<String[]> treeEntries, boolean isSensibleAttribute){
         this.position = position;
         this.generalizationType = generalizationType;
         this.treeEntries = treeEntries;
+        this.isSensibleAttribute = isSensibleAttribute;
     }
 
-    public CastleRule(int position, CastleFunction.Generalization generalizationType){
+    public CastleRule(int position, CastleFunction.Generalization generalizationType, boolean isSensibleAttribute){
         this.position = position;
         this.generalizationType = generalizationType;
+        this.isSensibleAttribute = isSensibleAttribute;
     }
 
     public int getPosition() {
@@ -45,11 +49,16 @@ public class CastleRule {
         return treeEntries;
     }
 
+    public boolean getIsSensibleAttribute() {
+        return isSensibleAttribute;
+    }
+
     @Override
     public String toString() {
         return "CastleRule{" +
                 "position=" + position +
                 ", generalizationType=" + generalizationType +
+                ", isSensibleAttribute=" + isSensibleAttribute +
                 '}';
     }
 }

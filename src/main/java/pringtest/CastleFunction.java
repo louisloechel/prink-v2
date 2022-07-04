@@ -1,6 +1,9 @@
 package pringtest;
 
-import org.apache.flink.api.common.state.*;
+import org.apache.flink.api.common.state.BroadcastState;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -9,7 +12,6 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
 import org.apache.flink.util.Collector;
 import pringtest.datatypes.CastleRule;
@@ -80,7 +82,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             if(currentRuleState.contains(i)){
                 newRuleArray.add(i, currentRuleState.get(i));
             }else{
-                CastleRule missingRule = new CastleRule(i, Generalization.NONE);
+                CastleRule missingRule = new CastleRule(i, Generalization.NONE, false);
                 context.getBroadcastState(ruleStateDescriptor).put(i, missingRule);
                 newRuleArray.add(i, missingRule);
             }
@@ -93,7 +95,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         // Redefine sensible attribute positions
         ArrayList<Integer> newPos = new ArrayList<>();
         for(int i = 0; i < rules.length; i++) {
-            if(rules[i].getGeneralizationType() != Generalization.NONE) newPos.add(i);
+            if(rules[i].getIsSensibleAttribute()) newPos.add(i);
         }
         posSensibleAttributes = newPos.stream().mapToInt(i -> i).toArray();
 
@@ -137,7 +139,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         if(clusterWithInput.size() >= k && clusterWithInput.diversity(posSensibleAttributes) >= l){
             outputCluster(clusterWithInput, output);
         }else{
-            // TODO check if it is possible to have multiple clusters
             Cluster[] ksClustersWithInput = getClustersContaining(input);
             if(ksClustersWithInput.length > 0){
                 // TODO check if Random needs to be outside of function to not create a new random object every time (to not be predictable)
@@ -157,6 +158,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             if(m > (bigGamma.size()/2)){
                 // suppress t with the most generalized QI value
                 // TODO find out what 'most generalized QI' exactly means
+//                System.out.println("Outlier detected (m > (bigGamma.size()/2)): m:" + m + " bigGamma.size:" + bigGamma.size() + " input:" + input);
 //                output.collect(selected.generalize(input));
                 removeTuple(input);
                 return;
@@ -174,6 +176,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             if(totalGammaSize < k || distinctValues.size() < l){
                 // suppress t
                 // TODO find out what 'most generalized QI' exactly means
+//                System.out.println("Outlier detected (totalGammaSize < k || distinctValues.size() < l):" + input);
 //                output.collect(selected.generalize(input));
                 removeTuple(input);
             }
@@ -229,14 +232,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
         for(Cluster cluster: clusters){
             for(Tuple tuple: cluster.getAllEntries()){
-                // TODO set values of tuples without rules to null
-                try {
-                    output.collect(cluster.generalize(tuple));
-                }catch (Exception e){
-                    System.out.println("FIXME: Output.collect throws error:" + e.toString() + " with generalization:" + cluster.generalize(tuple) + " rule length:" + ((rules != null) ? rules.length : 0));
-                }
-//                TODO check if entry should be deleted here or with the deletion of the cluster below (check for calculation of tau)
-//                cluster.removeEntry(tuple);
+                output.collect(cluster.generalize(tuple));
                 globalTuples.remove(tuple);
             }
             updateTau(cluster);
@@ -319,6 +315,8 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     private Collection<Cluster> splitL(Cluster input, int[] posSensAtts) {
         ArrayList<Cluster> output = new ArrayList<>();
         HashMap<Object, ArrayList<Tuple>> buckets = generateBucketsSensAtt(input, posSensAtts);
+        // TODO see if Random() needs to be defined outside the function
+        Random random = new Random();
 
         if(buckets.size() < l){
             output.add(input);
@@ -331,8 +329,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         }
         while(buckets.size() >= l && sum >= k){
             // Randomly select a bucket and select one tuple
-            // TODO see if Random() needs to be defined outside the function
-            Random random = new Random();
             List<Object> ids = new ArrayList<>(buckets.keySet());
             Object selectedBucketId = ids.get(random.nextInt(buckets.size()));
             ArrayList<Tuple> selectedBucket = buckets.get(selectedBucketId);
@@ -440,7 +436,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 StringBuilder builder = new StringBuilder();
                 for(int pos: posSensAtts){
                     builder.append(tuple.getField(pos).toString());
-                    // Add seperator to prevent attribute mismatching
+                    // Add separator to prevent attribute mismatching
                     builder.append(";");
                 }
                 String sensAtt = builder.toString();
@@ -448,7 +444,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 output.get(sensAtt).add(tuple);
             }
         }
-        // TODO check if generateBucketsSensAtt needs to remove tuples from the input cluster
         return output;
     }
 
@@ -545,7 +540,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     }
 
     // State section
-    // TODO create the needed states
 
     @Override
     public void snapshotState(FunctionSnapshotContext functionSnapshotContext) throws Exception {

@@ -99,15 +99,15 @@ public class PrinkInformationReduction {
 
         // broadcast the rules and create the broadcast state
         ArrayList<CastleRule> rules = new ArrayList<>();
-        rules.add(new CastleRule(0, CastleFunction.Generalization.NONE));
-//        rules.add(new CastleRule(1, CastleFunction.Generalization.NONE));
-        rules.add(new CastleRule(1, CastleFunction.Generalization.REDUCTION));
-        rules.add(new CastleRule(2, CastleFunction.Generalization.NONE));
-        rules.add(new CastleRule(3, CastleFunction.Generalization.NONE));
-        rules.add(new CastleRule(4, CastleFunction.Generalization.NONNUMERICAL, treeEntries));
-        rules.add(new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f)));
-        rules.add(new CastleRule(6, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,200f)));
-        rules.add(new CastleRule(7, CastleFunction.Generalization.AGGREGATION, Tuple2.of(10f,500f)));
+        rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
+//        rules.add(new CastleRule(1, CastleFunction.Generalization.NONE, false));
+        rules.add(new CastleRule(1, CastleFunction.Generalization.REDUCTION, false));
+        rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
+        rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, false));
+        rules.add(new CastleRule(4, CastleFunction.Generalization.NONNUMERICAL, treeEntries, true));
+        rules.add(new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f), false));
+        rules.add(new CastleRule(6, CastleFunction.Generalization.NONE, Tuple2.of(0f,200f), true));
+        rules.add(new CastleRule(7, CastleFunction.Generalization.NONE, Tuple2.of(10f,500f), true));
 
         DataStream<CastleRule> ruleStream = env.fromCollection(rules);
 
@@ -212,7 +212,7 @@ public class PrinkInformationReduction {
                 System.out.println();
                 System.out.println("---------------------------------------------------");
 
-            }else{
+            }else if(false){
                 System.out.println(
                     input.f0 + ";" +
                     input.toString() +
