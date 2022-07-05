@@ -17,8 +17,10 @@ import org.apache.flink.util.Collector;
 import pringtest.datatypes.CastleRule;
 import pringtest.datatypes.Cluster;
 
+import java.lang.reflect.Array;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class CastleFunction extends KeyedBroadcastProcessFunction
         implements CheckpointedFunction {
@@ -169,11 +171,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             int totalGammaSize = bigGamma.stream().mapToInt(Cluster::size).sum();
 //            int count = bigGamma.stream().collect(summingInt(cluster -> cluster.size()) );
             // it must also be checked that there exist at least 'l' distinct values of a_s among all clusters in bigGamma
-            Set<Object> distinctValues = new HashSet<>();
-            for(Cluster cluster: bigGamma){
-                distinctValues.addAll(cluster.getSensibleValues(posSensibleAttributes));
-            }
-            if(totalGammaSize < k || distinctValues.size() < l){
+            if(totalGammaSize < k || !checkDiversityBigGamma()){
                 // suppress t
                 // TODO find out what 'most generalized QI' exactly means
 //                System.out.println("Outlier detected (totalGammaSize < k || distinctValues.size() < l):" + input);
@@ -185,6 +183,50 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             outputCluster(mergedCluster, output);
         }
 
+    }
+
+    /**
+     * Checks if bigGamma has at least l diverse values for the sensible attributes
+     * @return true if diversity is equal or bigger than l, false if diversity is smaller than l
+     */
+    private boolean checkDiversityBigGamma() {
+        if(posSensibleAttributes.length <= 0) return true;
+
+        ArrayList<Tuple> allBigGammaEntries = new ArrayList<>();
+        for(Cluster cluster: bigGamma){
+            allBigGammaEntries.addAll(cluster.getAllEntries());
+        }
+
+        if(posSensibleAttributes.length == 1){
+            // TODO test if correct
+            // Calculate the amount of different values inside the sensible attribute and return true if bigger than l
+            Set<String> output = new HashSet<>();
+            for(Tuple tuple: allBigGammaEntries){
+                output.add(tuple.getField(posSensibleAttributes[0]));
+                if(output.size() >= l) return true;
+            }
+        }else {
+            // See for concept: https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1
+            List<Tuple2<Integer, Map.Entry<Object, Long>>> numOfAppearances = new ArrayList<>();
+            int counter = 0;
+
+            while (allBigGammaEntries.size() > 0) {
+                counter++;
+                if(counter >= l) return true;
+                for (int pos : posSensibleAttributes) {
+                    // TODO check if two strings are added to the same grouping if they have the same value but are different objects
+                    Map.Entry<Object, Long> temp = allBigGammaEntries.stream().collect(Collectors.groupingBy(s -> s.getField(pos), Collectors.counting()))
+                            .entrySet().stream().max((attEntry1, attEntry2) -> attEntry1.getValue() > attEntry2.getValue() ? 1 : -1).get();
+                    numOfAppearances.add(Tuple2.of(pos, temp));
+                }
+                Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> attEntry1.f1.getValue() > attEntry2.f1.getValue() ? 1 : -1).get();
+                System.out.println("BigGamma: Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + allBigGammaEntries.size() + " OriginalSize:" + allBigGammaEntries.size());
+                // Remove all entries that have the least diverse attribute
+                allBigGammaEntries.removeIf(i -> i.getField(mapEntryToDelete.f0).equals(mapEntryToDelete.f1.getKey()));
+                numOfAppearances.clear();
+            }
+        }
+        return false;
     }
 
     private Cluster mergeClusters(Cluster input) {
@@ -221,7 +263,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         ArrayList<Cluster> clusters = new ArrayList<>();
         if(input.size() >= (2*k) && input.diversity(posSensibleAttributes) >= l){
             if(l > 0){
-                clusters.addAll(splitL(input, posSensibleAttributes));
+                clusters.addAll(splitL(input));
             }else{
                 clusters.addAll(split(input));
             }
@@ -312,13 +354,40 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         return output;
     }
 
-    private Collection<Cluster> splitL(Cluster input, int[] posSensAtts) {
+    private Collection<Cluster> splitL(Cluster input) {
+
+        // TODO delete after testing
+        StringBuilder sb = new StringBuilder();
+        sb.append("------ splitL input values ------\n");
+        for(Tuple t: input.getAllEntries()){
+            sb.append("| - ").append(t.toString()).append("\n");
+        }
+        sb.append("-----------------------------------");
+        System.out.println(sb.toString());
+
         ArrayList<Cluster> output = new ArrayList<>();
-        HashMap<Object, ArrayList<Tuple>> buckets = generateBucketsSensAtt(input, posSensAtts);
+        HashMap<Object, ArrayList<Tuple>> buckets = generateBucketsSensAtt(input);
         // TODO see if Random() needs to be defined outside the function
         Random random = new Random();
 
+
+        StringBuilder sb1 = new StringBuilder();
+        sb1.append("------ splitL input values after generateBuckets ------\n");
+        for(Tuple t: input.getAllEntries()){
+            sb1.append("| - ").append(t.toString()).append("\n");
+        }
+        sb1.append("------ splitL buckets of generateBuckets ------\n");
+        for(ArrayList<Tuple> ts: buckets.values()){
+            for(Tuple t: ts){
+                sb1.append("| - ").append(t.toString()).append("\n");
+            }
+        }
+        sb1.append("-----------------------------------");
+        System.out.println(sb1.toString());
+
         if(buckets.size() < l){
+            System.out.println("DEBUG: Transferred Input to Output. bucket.size():" + buckets.size() + " l:" + l + " input size after bucket generation:" + input.size());
+            // TODO check if bucket tuples need to be re-added before returning input (or if a deep copy of input is needed)
             output.add(input);
             return output;
         }
@@ -402,7 +471,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             ArrayList<Tuple> idTuples = new ArrayList<>();
             for(Tuple tuple: cluster.getAllEntries()) {
                 // Select all tuples inside input with the same id value as tuple
-                // TODO check if generateBucketsSensAtt needs to remove tuples from the input cluster to prevent duplicates
                 long tupleId = tuple.getField(posTupleId);
                 for (Tuple inputTuple : input.getAllEntries()) {
                     long tupleIdInput = inputTuple.getField(posTupleId);
@@ -413,11 +481,34 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             cluster.addAllEntries(idTuples);
             // Delete them from the input cluster
             input.removeAllEntries(idTuples);
-            // Delete cluster from bigGamma if empty
-            if(input.size() <= 0) bigGamma.remove(input);
+            // Delete cluster from bigGamma if empty // TODO can be deleted (See line 270)
+            if(input.size() <= 0){
+                bigGamma.remove(input);
+            }else{
+                System.out.println("DEBUG: input size bigger than 0!" + input.toString());
+            }
         }
 
+        // TODO delete after testing
+        checkGeneratedClusters(output);
+
         return output;
+    }
+
+    /// Pur testing function delete after testing
+    private void checkGeneratedClusters(ArrayList<Cluster> output) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("----------| Cluster Check |---------- \n");
+        for (int i = 0; i < output.size(); i++) {
+            sb.append("| Output Cluster Nr:").append(i).append("\n");
+            sb.append("| Diversity:").append(output.get(i).diversity(posSensibleAttributes)).append(" l:").append(l).append("\n");
+            sb.append("| Has entries:\n");
+            for(Tuple tuple: output.get(i).getAllEntries()){
+                sb.append("| - ").append(tuple).append("\n");
+            }
+        }
+        sb.append("---------------------------------");
+        System.out.println(sb.toString());
     }
 
     /**
@@ -425,25 +516,65 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
      * @param input Cluster with tuples to create HashMap
      * @return HashMap of one tuple per 'pid' sorted in 'buckets' based on 'sensible attribute'
      */
-    private HashMap<Object, ArrayList<Tuple>> generateBucketsSensAtt(Cluster input, int[] posSensAtts) {
-        // TODO replace object with string if attribute combining is kept
+    private HashMap<Object, ArrayList<Tuple>> generateBucketsSensAtt(Cluster input) {
         HashMap<Object, ArrayList<Tuple>> output = new HashMap<>();
         HashSet<Long> usedIds = new HashSet<>();
+        ArrayList<Tuple> inputTuplesToDelete = new ArrayList<>(); // TODO-Later maybe delete through iterator if more performant
 
-        for(Tuple tuple: input.getAllEntries()){
-            long tupleId = tuple.getField(posTupleId);
-            if(usedIds.add(tupleId)){
-                StringBuilder builder = new StringBuilder();
-                for(int pos: posSensAtts){
-                    builder.append(tuple.getField(pos).toString());
-                    // Add separator to prevent attribute mismatching
-                    builder.append(";");
+        if(posSensibleAttributes.length <= 0) return output;
+        if(posSensibleAttributes.length == 1){
+            for(Tuple tuple: input.getAllEntries()){
+                long tupleId = tuple.getField(posTupleId);
+                if(usedIds.add(tupleId)){
+                    output.putIfAbsent(tuple.getField(posSensibleAttributes[0]), new ArrayList<>());
+                    output.get(tuple.getField(posSensibleAttributes[0])).add(tuple);
+                    inputTuplesToDelete.add(tuple);
                 }
-                String sensAtt = builder.toString();
-                output.putIfAbsent(sensAtt, new ArrayList<>());
-                output.get(sensAtt).add(tuple);
+            }
+        }else{
+            ArrayList<Tuple> oneIdTuples = new ArrayList<>();
+            // Select one tuple per pid/tupleId
+            for(Tuple tuple: input.getAllEntries()){
+                long tupleId = tuple.getField(posTupleId);
+                if(usedIds.add(tupleId)){
+                    oneIdTuples.add(tuple);
+                    inputTuplesToDelete.add(tuple);
+                }
+            }
+
+            // Generate buckets based on concept: https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1
+            List<Tuple2<Integer, Map.Entry<Object, Long>>> numOfAppearances = new ArrayList<>();
+            int counter = 0;
+            while (oneIdTuples.size() > 0) {
+                counter++;
+                for (int pos : posSensibleAttributes) {
+                    // TODO check if two strings are added to the same grouping if they have the same value but are different objects
+                    Map.Entry<Object, Long> temp = oneIdTuples.stream().collect(Collectors.groupingBy(s -> s.getField(pos), Collectors.counting()))
+                            .entrySet().stream().max((attEntry1, attEntry2) -> attEntry1.getValue() > attEntry2.getValue() ? 1 : -1).get();
+                    numOfAppearances.add(Tuple2.of(pos, temp));
+                }
+                Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> attEntry1.f1.getValue() > attEntry2.f1.getValue() ? 1 : -1).get();
+                System.out.println("Generate buckets:Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + oneIdTuples.size() + " OriginalSize:" + oneIdTuples.size());
+
+                // Remove all entries that have the least diverse attribute from input and add them to a bucket
+                // TODO check if there is a better key generation or just use the counter value as key
+                String generatedKey = mapEntryToDelete.f0 + "-" + mapEntryToDelete.f1.getKey().toString();
+                ArrayList<Tuple> tuplesToDelete = new ArrayList<>(); // TODO-Later maybe use iterator to delete tuples if performance is better
+                output.putIfAbsent(generatedKey, new ArrayList<>());
+                for(Tuple tuple: oneIdTuples){
+                    if(tuple.getField(mapEntryToDelete.f0).equals(mapEntryToDelete.f1.getKey())){
+                        output.get(generatedKey).add(tuple);
+                        tuplesToDelete.add(tuple);
+                    }
+                }
+                oneIdTuples.removeAll(tuplesToDelete);
+
+                numOfAppearances.clear();
             }
         }
+        System.out.println("Generated buckets -> " + output.toString());
+        // Remove all used tuples to prevent duplicates inside splitL function
+        input.removeAllEntries(inputTuplesToDelete);
         return output;
     }
 

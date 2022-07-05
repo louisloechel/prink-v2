@@ -6,6 +6,7 @@ import pringtest.generalizations.NonNumericalGeneralizer;
 import pringtest.generalizations.ReductionGeneralizer;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Cluster {
 
@@ -24,8 +25,7 @@ public class Cluster {
     boolean showEnlargement = false;
 
     public Cluster(CastleRule[] rules) {
-        // TODO-Later maybe remove since values without rules are rejected
-        this.config = (rules == null) ? new CastleRule[]{} : rules;
+        this.config = rules;
         aggreGeneralizer = new AggregationGeneralizer(config);
         reductGeneralizer = new ReductionGeneralizer(this);
         nonNumGeneralizer = new NonNumericalGeneralizer(config);
@@ -109,34 +109,30 @@ public class Cluster {
 
     public Tuple generalize(Tuple input) {
 
-        Object[] fieldValues = new Object[config.length];
+        // Return new tuple with generalized field values
+        int inputArity = input.getArity();
+        Tuple output = Tuple.newInstance(inputArity);
 
-        for (int i = 0; i < config.length; i++) {
+        for (int i = 0; i < Math.min(inputArity, config.length); i++) {
             switch (config[i].getGeneralizationType()) {
                 case REDUCTION:
-                    fieldValues[i] = reductGeneralizer.generalize(i).f0;
+                    output.setField(reductGeneralizer.generalize(i).f0, i);
                     break;
                 case AGGREGATION:
-                    fieldValues[i] = aggreGeneralizer.generalize(i).f0;
+                    output.setField(aggreGeneralizer.generalize(i).f0, i);
                     break;
                 case NONNUMERICAL:
-                    fieldValues[i] = nonNumGeneralizer.generalize(i).f0;
+                    output.setField(nonNumGeneralizer.generalize(i).f0, i);
                     break;
                 case NONE:
                 case REDUCTION_WITHOUT_GENERALIZATION:
                 case AGGREGATION_WITHOUT_GENERALIZATION:
                 case NONNUMERICAL_WITHOUT_GENERALIZATION:
-                    fieldValues[i] = input.getField(i);
+                    output.setField(input.getField(i), i);
                     break;
                 default:
                     System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
             }
-        }
-        // Return new tuple with generalized field values
-        int inputArity = input.getArity();
-        Tuple output = Tuple.newInstance(inputArity);
-        for (int i = 0; i < Math.min(inputArity, config.length); i++) {
-            output.setField(fieldValues[i], i);
         }
         return output;
     }
@@ -188,22 +184,35 @@ public class Cluster {
      * @return cluster diversity
      */
     public int diversity(int[] posSensibleAttributes) {
-        // TODO maybe calculate on insert to save performance
-        return getSensibleValues(posSensibleAttributes).size();
-    }
+        if(posSensibleAttributes.length <= 0) return 0;
+        if(posSensibleAttributes.length == 1){
+            // TODO test if correct
+            // Return the amount of different values inside the sensible attribute
+            Set<String> output = new HashSet<>();
+            for(Tuple tuple: entries) output.add(tuple.getField(posSensibleAttributes[0]));
+            return output.size();
+        }else{
+            // See for concept: https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1
+            ArrayList<Tuple> entriesCopy = (ArrayList<Tuple>) entries.clone();
+            List<Tuple2<Integer, Map.Entry<Object, Long>>> numOfAppearances = new ArrayList<>();
+            int counter = 0;
 
-    public Collection<String> getSensibleValues(int[] posSensibleAttributes) {
-        // TODO check if better sensible attribute combiner exists
-        Set<String> output = new HashSet<>();
-        for(Tuple tuple: entries){
-            StringBuilder builder = new StringBuilder();
-            for(int pos: posSensibleAttributes){
-                builder.append(tuple.getField(pos).toString());
-                // Add separator to prevent attribute mismatching
-                builder.append(";");
+            while (entriesCopy.size() > 0) {
+                counter++;
+                for (int pos : posSensibleAttributes) {
+                    // TODO check if two strings are added to the same grouping if they have the same value but are different objects
+                    Map.Entry<Object, Long> temp = entriesCopy.stream().collect(Collectors.groupingBy(s -> s.getField(pos), Collectors.counting()))
+                            .entrySet().stream().max((attEntry1, attEntry2) -> attEntry1.getValue() > attEntry2.getValue() ? 1 : -1).get();
+                    numOfAppearances.add(Tuple2.of(pos, temp));
+                }
+                Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> attEntry1.f1.getValue() > attEntry2.f1.getValue() ? 1 : -1).get();
+                System.out.println("Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + entriesCopy.size() + " OriginalSize:" + entries.size());
+                // Remove all entries that have the least diverse attribute
+                entriesCopy.removeIf(i -> i.getField(mapEntryToDelete.f0).equals(mapEntryToDelete.f1.getKey()));
+                numOfAppearances.clear();
             }
-            output.add(builder.toString());
+            System.out.println("Diversity:" + counter);
+            return counter;
         }
-        return output;
     }
 }

@@ -12,12 +12,11 @@ public class TreeNode implements Comparable<TreeNode>{
     private int coverage = 0;
     /** Parameters to measure the enlargement value/infoLoss for new node */
     private int coverageTemporary = 0;
-    private boolean isTemporary;
+    private boolean showInfoLoss = false;
 
     public TreeNode(String content, TreeNode parent, boolean isTemporary){
         this.content = content;
         this.parent = parent;
-        this.isTemporary = isTemporary;
     }
 
     public TreeNode(String content){
@@ -152,9 +151,9 @@ public class TreeNode implements Comparable<TreeNode>{
     private float infoLoss(int totalNumLeaves) {
         int subtreeLeaves = numOfLeaves()-1;
         // Return 0 if the subtree in question is a leaf node
-        if(subtreeLeaves <= 0) System.out.println("DEBUG: infoLoss test: (" + numOfLeaves() + "-1)/(" + totalNumLeaves + "-1) = " + 0);
+        if(showInfoLoss && subtreeLeaves <= 0) System.out.println("DEBUG: infoLoss test: (" + numOfLeaves() + "-1)/(" + totalNumLeaves + "-1) = " + 0);
         if(subtreeLeaves <= 0) return 0f;
-        System.out.println("DEBUG: infoLoss test: (" + numOfLeaves() + "-1)/(" + totalNumLeaves + "-1) = " + ((float)(numOfLeaves()-1)/(float)(totalNumLeaves-1)));
+        if(showInfoLoss) System.out.println("DEBUG: infoLoss test: (" + numOfLeaves() + "-1)/(" + totalNumLeaves + "-1) = " + ((float)(numOfLeaves()-1)/(float)(totalNumLeaves-1)));
         return ((float)(numOfLeaves()-1)/(float)(totalNumLeaves-1));
     }
 
@@ -188,7 +187,7 @@ public class TreeNode implements Comparable<TreeNode>{
         for(int i = 0; i < depth; i++) {
             builder.append("-");
         }
-        builder.append("> ").append(content).append(" coverage:").append(coverage).append(" coverageTemp:").append(coverageTemporary).append(" (parent:").append((parent != null) ? parent.content : "X").append(") isTem:").append(isTemporary);
+        builder.append("> ").append(content).append(" coverage:").append(coverage).append(" coverageTemp:").append(coverageTemporary).append(" (parent:").append((parent != null) ? parent.content : "X").append(")");
         System.out.println(builder.toString());
 
         for(TreeNode node: children){
