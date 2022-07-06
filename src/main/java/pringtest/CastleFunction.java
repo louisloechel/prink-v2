@@ -174,15 +174,15 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             if(totalGammaSize < k || !checkDiversityBigGamma()){
                 // suppress t
                 // TODO find out what 'most generalized QI' exactly means
-//                System.out.println("Outlier detected (totalGammaSize < k || distinctValues.size() < l):" + input);
+//                System.out.println("Outlier detected (totalGammaSize(" + totalGammaSize + ") < k || !checkDiversityBigGamma()(" + !checkDiversityBigGamma() + ") < l):" + input);
 //                output.collect(selected.generalize(input));
                 removeTuple(input);
+                return;
             }
 
             Cluster mergedCluster = mergeClusters(clusterWithInput);
             outputCluster(mergedCluster, output);
         }
-
     }
 
     /**
@@ -220,7 +220,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                     numOfAppearances.add(Tuple2.of(pos, temp));
                 }
                 Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> attEntry1.f1.getValue() > attEntry2.f1.getValue() ? 1 : -1).get();
-                System.out.println("BigGamma: Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + allBigGammaEntries.size() + " OriginalSize:" + allBigGammaEntries.size());
+//                System.out.println("BigGamma: Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + allBigGammaEntries.size() + " OriginalSize:" + allBigGammaEntries.size());
                 // Remove all entries that have the least diverse attribute
                 allBigGammaEntries.removeIf(i -> i.getField(mapEntryToDelete.f0).equals(mapEntryToDelete.f1.getKey()));
                 numOfAppearances.clear();
@@ -372,23 +372,20 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
 
         StringBuilder sb1 = new StringBuilder();
-        sb1.append("------ splitL input values after generateBuckets ------\n");
+        sb1.append("------ splitL input values after generateBuckets (tuples with more than one entry for pid) ------\n");
         for(Tuple t: input.getAllEntries()){
             sb1.append("| - ").append(t.toString()).append("\n");
         }
-        sb1.append("------ splitL buckets of generateBuckets ------\n");
-        for(ArrayList<Tuple> ts: buckets.values()){
-            for(Tuple t: ts){
-                sb1.append("| - ").append(t.toString()).append("\n");
-            }
-        }
-        sb1.append("-----------------------------------");
         System.out.println(sb1.toString());
 
         if(buckets.size() < l){
-            System.out.println("DEBUG: Transferred Input to Output. bucket.size():" + buckets.size() + " l:" + l + " input size after bucket generation:" + input.size());
-            // TODO check if bucket tuples need to be re-added before returning input (or if a deep copy of input is needed)
+            // Re-add bucket values to input to return input back to the system
+            for(ArrayList<Tuple> bucket: buckets.values()){
+                input.addAllEntries(bucket);
+            }
             output.add(input);
+            // TODO delete after testing
+            checkGeneratedClusters(output, "bucket.size to small. No bucket generation");
             return output;
         }
 
@@ -424,7 +421,8 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
                 // Select first (k*(bucket.size()/sum)) tuples or at least 1 and move them to the new cluster
                 if(bucket.size() > 0) {
-                    for (int i = 0; i < Math.max(k * (bucket.size() / sum), 1); i++) {
+                    double amountToAdd = Math.max(Math.ceil(k * (bucket.size() / (float) sum)), 1);
+                    for (int i = 0; i < amountToAdd; i++) {
                         newCluster.addEntry(enlargement.get(i).f0);
                         bucket.remove(enlargement.get(i).f0);
                     }
@@ -481,24 +479,18 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             cluster.addAllEntries(idTuples);
             // Delete them from the input cluster
             input.removeAllEntries(idTuples);
-            // Delete cluster from bigGamma if empty // TODO can be deleted (See line 270)
-            if(input.size() <= 0){
-                bigGamma.remove(input);
-            }else{
-                System.out.println("DEBUG: input size bigger than 0!" + input.toString());
-            }
         }
 
         // TODO delete after testing
-        checkGeneratedClusters(output);
+        checkGeneratedClusters(output, "Bucket generation");
 
         return output;
     }
 
     /// Pur testing function delete after testing
-    private void checkGeneratedClusters(ArrayList<Cluster> output) {
+    private void checkGeneratedClusters(ArrayList<Cluster> output, String text) {
         StringBuilder sb = new StringBuilder();
-        sb.append("----------| Cluster Check |---------- \n");
+        sb.append("----------| Cluster Check (").append(text).append(") |---------- \n");
         for (int i = 0; i < output.size(); i++) {
             sb.append("| Output Cluster Nr:").append(i).append("\n");
             sb.append("| Diversity:").append(output.get(i).diversity(posSensibleAttributes)).append(" l:").append(l).append("\n");

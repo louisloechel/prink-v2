@@ -32,11 +32,13 @@ public class Cluster {
     }
 
     public Float enlargementValue(Cluster input) {
+        if(entries.size() <= 0) System.out.println("ERROR: enlargementValue(Cluster) called on cluster with size: 0 cluster:" + this);
         if(showEnlargement) System.out.println("Enlargement Value Cluster:" + (informationLossWith(input) - infoLoss()));
         return informationLossWith(input) - infoLoss();
     }
 
     public Float enlargementValue(Tuple input) {
+        if(entries.size() <= 0) System.out.println("ERROR: enlargementValue(tuple) called on cluster with size: 0 cluster:" + this);
         if(showEnlargement) System.out.println("Enlargement Value Tuple:" + (informationLossWith(input) - infoLoss()));
         return informationLossWith(input) - infoLoss();
     }
@@ -50,6 +52,7 @@ public class Cluster {
     }
 
     private float informationLossWith(List<Tuple> input) {
+        if(entries.size() <= 0) System.out.println("ERROR: informationLossWith() called on cluster with size: 0 cluster:" + this);
         double[] infoLossWith = new double[config.length];
 
         for (int i = 0; i < config.length; i++) {
@@ -79,6 +82,7 @@ public class Cluster {
     }
 
     public float infoLoss() {
+        if(entries.size() <= 0) System.out.println("ERROR: infoLoss() called on cluster with size: 0 cluster:" + this);
         double[] infoLoss = new double[config.length];
 
         for (int i = 0; i < config.length; i++) {
@@ -206,12 +210,12 @@ public class Cluster {
                     numOfAppearances.add(Tuple2.of(pos, temp));
                 }
                 Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> attEntry1.f1.getValue() > attEntry2.f1.getValue() ? 1 : -1).get();
-                System.out.println("Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + entriesCopy.size() + " OriginalSize:" + entries.size());
+//                System.out.println("Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + entriesCopy.size() + " OriginalSize:" + entries.size());
                 // Remove all entries that have the least diverse attribute
                 entriesCopy.removeIf(i -> i.getField(mapEntryToDelete.f0).equals(mapEntryToDelete.f1.getKey()));
                 numOfAppearances.clear();
             }
-            System.out.println("Diversity:" + counter);
+//            System.out.println("Diversity:" + counter);
             return counter;
         }
     }
