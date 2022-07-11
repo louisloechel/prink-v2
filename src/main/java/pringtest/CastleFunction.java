@@ -278,6 +278,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 globalTuples.remove(tuple);
             }
             updateTau(cluster);
+            // TODO fix bigOmega
             if(cluster.infoLoss() < tau) bigOmega.add(cluster);
 
             bigGamma.remove(cluster);
@@ -394,6 +395,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             sum = sum + bucket.size();
         }
         while(buckets.size() >= l && sum >= k){
+            System.out.println("DEBUG: Start while (buckets.size() >= l && sum >= k) -> " + buckets.size() + " >= " + l + " && " + sum + " >= " + k + ")");
             // Randomly select a bucket and select one tuple
             List<Object> ids = new ArrayList<>(buckets.keySet());
             Object selectedBucketId = ids.get(random.nextInt(buckets.size()));
@@ -405,6 +407,8 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             Cluster newCluster = new Cluster(rules);
             newCluster.addEntry(selectedTuple);
             selectedBucket.remove(randomNum);
+            // Remove bucket if it has no values in them
+            if(selectedBucket.size() <= 0) buckets.remove(selectedBucketId);
 
             ArrayList<Object> bucketKeysToDelete = new ArrayList<>();
 
@@ -421,17 +425,24 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
                 // Select first (k*(bucket.size()/sum)) tuples or at least 1 and move them to the new cluster
                 if(bucket.size() > 0) {
-                    double amountToAdd = Math.max(Math.ceil(k * (bucket.size() / (float) sum)), 1);
+                    double amountToAdd = Math.max((k * (bucket.size() / (float) sum)), 1);
+                    System.out.print("DEBUG: amountToAdd:" + (k * (bucket.size() / (float) sum)) + " details[key:" + bucketEntry.getKey() + " size:" + bucket.size() + "] Added:");
                     for (int i = 0; i < amountToAdd; i++) {
+                        if(newCluster.size() >= k) break;
+                        System.out.print("+");
                         newCluster.addEntry(enlargement.get(i).f0);
                         bucket.remove(enlargement.get(i).f0);
                     }
+                    System.out.println(" End size:" + newCluster.size());
+                }else{
+                    System.out.println("DEBUG: amountToAdd:" + "Bucket empty" + " details[key:" + bucketEntry.getKey() + " size:" + bucket.size() + "]");
                 }
 
                 // Remove buckets that have no values in them
-//                if(bucket.size() <= 0) buckets.remove(bucketEntry.getKey());
                 if(bucket.size() <= 0) bucketKeysToDelete.add(bucketEntry.getKey());
+                if(newCluster.size() >= k) break;
             }
+            // Remove buckets that have no values in them
             for(Object key: bucketKeysToDelete) buckets.remove(key);
 
             output.add(newCluster);
@@ -441,6 +452,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             for(ArrayList<Tuple> bucket: buckets.values()){
                 sum = sum + bucket.size();
             }
+            System.out.println("DEBUG: End while (buckets.size() >= l && sum >= k) -> " + buckets.size() + " >= " + l + " && " + sum + " >= " + k + ")");
         }
 
         ArrayList<Object> bucketKeysToDelete = new ArrayList<>();
@@ -539,11 +551,14 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             int counter = 0;
             while (oneIdTuples.size() > 0) {
                 counter++;
-                for (int pos : posSensibleAttributes) {
+                for (int pos: posSensibleAttributes) {
                     // TODO check if two strings are added to the same grouping if they have the same value but are different objects
-                    Map.Entry<Object, Long> temp = oneIdTuples.stream().collect(Collectors.groupingBy(s -> s.getField(pos), Collectors.counting()))
+                    Map.Entry<Object, Long> temp = oneIdTuples.stream().collect(Collectors.groupingBy(s -> (s.getField(pos).getClass().isArray() ? ((Object[]) s.getField(pos))[((Object[]) s.getField(pos)).length-1] : s.getField(pos)), Collectors.counting()))
                             .entrySet().stream().max((attEntry1, attEntry2) -> attEntry1.getValue() > attEntry2.getValue() ? 1 : -1).get();
                     numOfAppearances.add(Tuple2.of(pos, temp));
+                    // TODO delete after testing
+//                    Map<Object, Long> temp2 = oneIdTuples.stream().collect(Collectors.groupingBy(s -> (s.getField(pos).getClass().isArray() ? ((Object[]) s.getField(pos))[((Object[]) s.getField(pos)).length-1] : s.getField(pos)), Collectors.counting()));
+//                    System.out.println("DEBUG: Collector results[" + pos + "]:" + temp2.toString());
                 }
                 Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> attEntry1.f1.getValue() > attEntry2.f1.getValue() ? 1 : -1).get();
                 System.out.println("Generate buckets:Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + oneIdTuples.size() + " OriginalSize:" + oneIdTuples.size());
@@ -554,7 +569,9 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 ArrayList<Tuple> tuplesToDelete = new ArrayList<>(); // TODO-Later maybe use iterator to delete tuples if performance is better
                 output.putIfAbsent(generatedKey, new ArrayList<>());
                 for(Tuple tuple: oneIdTuples){
-                    if(tuple.getField(mapEntryToDelete.f0).equals(mapEntryToDelete.f1.getKey())){
+                    // adjust to find also values from arrays TODO re-write
+                    Object toCompare = (tuple.getField(mapEntryToDelete.f0).getClass().isArray() ? ((Object[]) tuple.getField(mapEntryToDelete.f0))[((Object[]) tuple.getField(mapEntryToDelete.f0)).length-1] : tuple.getField(mapEntryToDelete.f0));
+                    if(toCompare.equals(mapEntryToDelete.f1.getKey())){
                         output.get(generatedKey).add(tuple);
                         tuplesToDelete.add(tuple);
                     }
@@ -605,9 +622,12 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
      */
     private Cluster[] getClustersContaining(Tuple input) {
         ArrayList<Cluster> output = new ArrayList<>();
+        // TODO check if that works
+        System.out.println("BigOmega Size:" + bigGamma.size());
         for(Cluster cluster: bigOmega){
             if(cluster.contains(input)) output.add(cluster);
         }
+        System.out.println("getClusterContaining (found inputs in bigOmage) size:" + output.size());
         return output.toArray(new Cluster[0]);
     }
 
