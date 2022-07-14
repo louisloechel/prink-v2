@@ -47,19 +47,27 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
     private final int k = 5;
     private final int l = 2;
+    /** Number of 'delayed' tuples */
     private final int delta = 10;
-    private final int beta = 5;
-    /* Set of non-k_s anonymized clusters */
+    /** Max number of clusters in bigGamma */
+    private final int beta = 10;
+    /** Max number of clusters in bigOmega */
+    private final int zeta = 10;
+    /** Set of non-k_s anonymized clusters */
     private ArrayList<Cluster> bigGamma = new ArrayList<>();
-    /* Set of k_s anonymized clusters */
-    private final ArrayList<Cluster> bigOmega = new ArrayList<>();
-    /* All tuple objects currently at hold */
+    /** Set of k_s anonymized clusters */
+    private final LinkedList<Cluster> bigOmega = new LinkedList<>();
+    /** All tuple objects currently at hold */
     private ArrayList<Tuple> globalTuples = new ArrayList<>();
-    /* The average information loss per cluster */
-    private float tau = 0;
-    /* Position of the id value inside the tuples */
+    /** The average information loss per cluster */
+    private float tau = 0; // TODO check if start at 0 or Float.MAX_VALUE
+    /** Number of last infoLoss values considered for tau */
+    private float mu = 5;
+    /** Last infoLoss values (max size = mu) */
+    private LinkedList<Float> recentInfoLoss = new LinkedList<>();
+    /** Position of the id value inside the tuples */
     private final int posTupleId = 1;
-    /* Position of the l diversity sensible attribute */
+    /** Position of the l diversity sensible attribute */
     private int[] posSensibleAttributes = new int[]{1};
 
 //    public CastleFunction(int k, int l, int delta, int beta){
@@ -275,17 +283,36 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 output.collect(cluster.generalize(tuple));
                 globalTuples.remove(tuple);
             }
-            updateTau(cluster);
-
-            if(cluster.infoLoss() < tau) bigOmega.add(cluster);
+            float clusterInfoLoss = cluster.infoLoss();
+            updateTau(clusterInfoLoss);
+            if(clusterInfoLoss < tau) bigOmega.addLast(cluster);
+            updateBigOmega();
 
             bigGamma.remove(cluster);
         }
     }
 
-    private void updateTau(Cluster cluster) {
-        // TODO replace with real calculation
-        tau = (tau > 0) ? ((tau + cluster.infoLoss()) / 2) : cluster.infoLoss();
+    /**
+     * Update tau be calculating the average of the 'mu' last infoLoss values
+     * @param clusterInfoLoss new infoLoss from the last generalized cluster (will be added to recentInfoLoss)
+     */
+    private void updateTau(float clusterInfoLoss) {
+        recentInfoLoss.addLast(clusterInfoLoss);
+        if(recentInfoLoss.size() > mu) recentInfoLoss.removeFirst();
+
+        float sum = 0;
+        for(float recentIL: recentInfoLoss) sum = sum + recentIL;
+        tau = sum / recentInfoLoss.size();
+    }
+
+    /**
+     * Remove the first value inside bigOmega if the size exceeds zeta
+     */
+    private void updateBigOmega() {
+        // TODO-Maybe (remove all entries with infoLoss bigger than tau)
+        if(bigOmega.size() > zeta){
+            bigOmega.removeFirst();
+        }
     }
 
     /**
