@@ -143,7 +143,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         }else{
             Cluster[] ksClustersWithInput = getClustersContaining(input);
             if(ksClustersWithInput.length > 0){
-                // TODO check if Random needs to be outside of function to not create a new random object every time (to not be predictable)
                 int random = new Random().nextInt(ksClustersWithInput.length);
                 Cluster selected = ksClustersWithInput[random];
                 // Output 'input' with the generalization of the selected cluster
@@ -198,7 +197,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         }
 
         if(posSensibleAttributes.length == 1){
-            // TODO test if correct
             // Calculate the amount of different values inside the sensible attribute and return true if bigger than l
             Set<String> output = new HashSet<>();
             for(Tuple tuple: allBigGammaEntries){
@@ -278,7 +276,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 globalTuples.remove(tuple);
             }
             updateTau(cluster);
-            // TODO fix bigOmega
+
             if(cluster.infoLoss() < tau) bigOmega.add(cluster);
 
             bigGamma.remove(cluster);
@@ -364,7 +362,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             sb.append("| - ").append(t.toString()).append("\n");
         }
         sb.append("-----------------------------------");
-        System.out.println(sb.toString());
+//        System.out.println(sb.toString());
 
         ArrayList<Cluster> output = new ArrayList<>();
         HashMap<Object, ArrayList<Tuple>> buckets = generateBucketsSensAtt(input);
@@ -377,7 +375,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         for(Tuple t: input.getAllEntries()){
             sb1.append("| - ").append(t.toString()).append("\n");
         }
-        System.out.println(sb1.toString());
+//        System.out.println(sb1.toString());
 
         if(buckets.size() < l){
             // Re-add bucket values to input to return input back to the system
@@ -395,7 +393,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             sum = sum + bucket.size();
         }
         while(buckets.size() >= l && sum >= k){
-            System.out.println("DEBUG: Start while (buckets.size() >= l && sum >= k) -> " + buckets.size() + " >= " + l + " && " + sum + " >= " + k + ")");
+//            System.out.println("DEBUG: Start while (buckets.size() >= l && sum >= k) -> " + buckets.size() + " >= " + l + " && " + sum + " >= " + k + ")");
             // Randomly select a bucket and select one tuple
             List<Object> ids = new ArrayList<>(buckets.keySet());
             Object selectedBucketId = ids.get(random.nextInt(buckets.size()));
@@ -426,16 +424,16 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 // Select first (k*(bucket.size()/sum)) tuples or at least 1 and move them to the new cluster
                 if(bucket.size() > 0) {
                     double amountToAdd = Math.max((k * (bucket.size() / (float) sum)), 1);
-                    System.out.print("DEBUG: amountToAdd:" + (k * (bucket.size() / (float) sum)) + " details[key:" + bucketEntry.getKey() + " size:" + bucket.size() + "] Added:");
+//                    System.out.print("DEBUG: amountToAdd:" + (k * (bucket.size() / (float) sum)) + " details[key:" + bucketEntry.getKey() + " size:" + bucket.size() + "] Added:");
                     for (int i = 0; i < amountToAdd; i++) {
                         if(newCluster.size() >= k) break;
-                        System.out.print("+");
+//                        System.out.print("+");
                         newCluster.addEntry(enlargement.get(i).f0);
                         bucket.remove(enlargement.get(i).f0);
                     }
-                    System.out.println(" End size:" + newCluster.size());
+//                    System.out.println(" End size:" + newCluster.size());
                 }else{
-                    System.out.println("DEBUG: amountToAdd:" + "Bucket empty" + " details[key:" + bucketEntry.getKey() + " size:" + bucket.size() + "]");
+//                    System.out.println("DEBUG: amountToAdd:" + "Bucket empty" + " details[key:" + bucketEntry.getKey() + " size:" + bucket.size() + "]");
                 }
 
                 // Remove buckets that have no values in them
@@ -452,7 +450,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             for(ArrayList<Tuple> bucket: buckets.values()){
                 sum = sum + bucket.size();
             }
-            System.out.println("DEBUG: End while (buckets.size() >= l && sum >= k) -> " + buckets.size() + " >= " + l + " && " + sum + " >= " + k + ")");
+//            System.out.println("DEBUG: End while (buckets.size() >= l && sum >= k) -> " + buckets.size() + " >= " + l + " && " + sum + " >= " + k + ")");
         }
 
         ArrayList<Object> bucketKeysToDelete = new ArrayList<>();
@@ -494,12 +492,12 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         }
 
         // TODO delete after testing
-        checkGeneratedClusters(output, "Bucket generation");
+//        checkGeneratedClusters(output, "Bucket generation");
 
         return output;
     }
 
-    /// Pur testing function delete after testing
+    // Pur testing function delete after testing
     private void checkGeneratedClusters(ArrayList<Cluster> output, String text) {
         StringBuilder sb = new StringBuilder();
         sb.append("----------| Cluster Check (").append(text).append(") |---------- \n");
@@ -561,7 +559,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 //                    System.out.println("DEBUG: Collector results[" + pos + "]:" + temp2.toString());
                 }
                 Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> attEntry1.f1.getValue() > attEntry2.f1.getValue() ? 1 : -1).get();
-                System.out.println("Generate buckets:Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + oneIdTuples.size() + " OriginalSize:" + oneIdTuples.size());
+//                System.out.println("Generate buckets:Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + oneIdTuples.size() + " OriginalSize:" + oneIdTuples.size());
 
                 // Remove all entries that have the least diverse attribute from input and add them to a bucket
                 // TODO check if there is a better key generation or just use the counter value as key
@@ -581,7 +579,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 numOfAppearances.clear();
             }
         }
-        System.out.println("Generated buckets -> " + output.toString());
+//        System.out.println("Generated buckets -> " + output.toString());
         // Remove all used tuples to prevent duplicates inside splitL function
         input.removeAllEntries(inputTuplesToDelete);
         return output;
@@ -616,18 +614,17 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     }
 
     /**
-     * Returns all k_s anonymized clusters that includes 'input'
+     * Returns all k_s anonymized clusters that includes 'input' (enlargement value is 0)
      * @param input The tuple that needs to be included
      * @return Clusters including 'input'
      */
     private Cluster[] getClustersContaining(Tuple input) {
         ArrayList<Cluster> output = new ArrayList<>();
-        // TODO check if that works
-        System.out.println("BigOmega Size:" + bigGamma.size());
         for(Cluster cluster: bigOmega){
-            if(cluster.contains(input)) output.add(cluster);
+            if(cluster.enlargementValue(input) <= 0) output.add(cluster);
         }
-        System.out.println("getClusterContaining (found inputs in bigOmage) size:" + output.size());
+        System.out.println("getClusterContaining (found inputs in bigOmega) BigOmega Size:" + bigOmega.size() + " found size:" + output.size()
+                + " bigOmega:" + bigOmega.toString());
         return output.toArray(new Cluster[0]);
     }
 
