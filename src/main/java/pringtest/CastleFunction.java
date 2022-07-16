@@ -46,7 +46,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     private transient ListState<Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>> checkpointedState;
 
     private final int k = 5;
-    private final int l = 2;
+    private final int l = 3;
     /** Number of 'delayed' tuples */
     private final int delta = 10;
     /** Max number of clusters in bigGamma */
@@ -221,14 +221,22 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 if(counter >= l) return true;
                 for (int pos : posSensibleAttributes) {
                     // TODO check if two strings are added to the same grouping if they have the same value but are different objects
-                    Map.Entry<Object, Long> temp = allBigGammaEntries.stream().collect(Collectors.groupingBy(s -> s.getField(pos), Collectors.counting()))
+                    Map.Entry<Object, Long> temp = allBigGammaEntries.stream().collect(Collectors.groupingBy(s -> (s.getField(pos).getClass().isArray() ? ((Object[]) s.getField(pos))[((Object[]) s.getField(pos)).length-1] : s.getField(pos)), Collectors.counting()))
                             .entrySet().stream().max((attEntry1, attEntry2) -> attEntry1.getValue() > attEntry2.getValue() ? 1 : -1).get();
                     numOfAppearances.add(Tuple2.of(pos, temp));
                 }
                 Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> attEntry1.f1.getValue() > attEntry2.f1.getValue() ? 1 : -1).get();
 //                System.out.println("BigGamma: Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + allBigGammaEntries.size() + " OriginalSize:" + allBigGammaEntries.size());
                 // Remove all entries that have the least diverse attribute
-                allBigGammaEntries.removeIf(i -> i.getField(mapEntryToDelete.f0).equals(mapEntryToDelete.f1.getKey()));
+                ArrayList<Tuple> tuplesToDelete = new ArrayList<>(); // TODO-Later maybe use iterator to delete tuples if performance is better
+                for(Tuple tuple: allBigGammaEntries){
+                    // adjust to find also values from arrays TODO re-write
+                    Object toCompare = (tuple.getField(mapEntryToDelete.f0).getClass().isArray() ? ((Object[]) tuple.getField(mapEntryToDelete.f0))[((Object[]) tuple.getField(mapEntryToDelete.f0)).length-1] : tuple.getField(mapEntryToDelete.f0));
+                    if(toCompare.equals(mapEntryToDelete.f1.getKey())){
+                        tuplesToDelete.add(tuple);
+                    }
+                }
+                allBigGammaEntries.removeAll(tuplesToDelete);
                 numOfAppearances.clear();
             }
         }
