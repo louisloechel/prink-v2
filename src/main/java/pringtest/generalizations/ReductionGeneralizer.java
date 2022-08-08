@@ -71,4 +71,9 @@ public class ReductionGeneralizer implements BaseGeneralizer{
         float infoLoss = (numReducted > 0) ? (numReducted/maxLength) : 0 ;
         return Tuple2.of(ids[0], infoLoss);
     }
+
+    @Override
+    public Tuple2<String, Float> generalizeMax(int pos) {
+        return Tuple2.of("*", 1.0f);
+    }
 }

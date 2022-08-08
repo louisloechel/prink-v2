@@ -50,6 +50,15 @@ public class AggregationGeneralizer implements BaseGeneralizer{
         return Tuple2.of(borders, infoLoss(pos, min, max));
     }
 
+    @Override
+    public Tuple2<Tuple2<Float, Float>, Float> generalizeMax(int pos) {
+        if(domainRanges.containsKey(pos)){
+            return Tuple2.of(Tuple2.of(domainRanges.get(pos).f0, domainRanges.get(pos).f1), 1.0f);
+        }else{
+            return Tuple2.of(Tuple2.of(null, null), 1.0f);
+        }
+    }
+
     /**
      * Calculate the information loss using the domain range and the min, max values of the generalization
      * @param pos attribute position

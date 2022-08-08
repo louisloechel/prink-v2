@@ -9,8 +9,13 @@ import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.Gauge;
+import org.apache.flink.runtime.metrics.DescriptiveStatisticsHistogram;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
+import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
 import org.apache.flink.util.Collector;
@@ -34,6 +39,18 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         NONE
     }
 
+    // Counter for monitoring
+    private transient Counter numSuppressedTuples;
+    private transient Counter numMergedCluster;
+    private transient Counter numCollectedClusters;
+    private transient Counter numCollectedClustersKs;
+    private transient Counter numCreatedClusters;
+    private transient Counter numCreatedClustersSplit;
+
+    private transient DescriptiveStatisticsHistogram eventTimeLag;
+    private transient DescriptiveStatisticsHistogram tauHistogram;
+    private transient DescriptiveStatisticsHistogram infoLossHistogram;
+
     private CastleRule[] rules;
 
     private final MapStateDescriptor<Integer, CastleRule> ruleStateDescriptor =
@@ -49,7 +66,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     /** Value l for l-diversity (if 0 l-diversity is not applied) */
     private int l = 2;
     /** Number of 'delayed' tuples */
-    private int delta = 10;
+    private int delta = 2; // 20
     /** Max number of clusters in bigGamma */
     private int beta = 50;
     /** Max number of clusters in bigOmega */
@@ -61,17 +78,24 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     /** All tuple objects currently at hold */
     private ArrayList<Tuple> globalTuples = new ArrayList<>();
     /** The average information loss per cluster */
-    private float tau = 0; // TODO check if start at 0 or Float.MAX_VALUE
+    private float tau = Float.MAX_VALUE;
     /** Number of last infoLoss values considered for tau */
-    private float mu = 100;
+    private int mu = 10;
     /** Last infoLoss values (max size = mu) */
     private final LinkedList<Float> recentInfoLoss = new LinkedList<>();
     /** Position of the id value inside the tuples */
     private int posTupleId = 1;
     /** Position of the l diversity sensible attribute */
     private int[] posSensibleAttributes = new int[]{1};
+    /** If true Prink adds the info loss of a tuple at the end of the tuple (tuple size increases by 1)*/
+    private boolean showInfoLoss = false;
+    /** Defines how to handle tuples that need to be suppressed.
+     * 0 = no tuple is collected;
+     * 1 = every quasi-identifier gets nulled;
+     * 2 = quasi-identifiers are generalized with max generalization values*/
+    private int suppressStrategy = 2;
 
-    public CastleFunction(int posTupleId, int k, int l, int delta, int beta, int zeta, float mu){
+    public CastleFunction(int posTupleId, int k, int l, int delta, int beta, int zeta, int mu, boolean showInfoLoss, int suppressStrategy){
         this.posTupleId = posTupleId;
         this.k = k;
         this.l = l;
@@ -79,6 +103,8 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         this.beta = beta;
         this.zeta = zeta;
         this.mu = mu;
+        this.showInfoLoss = showInfoLoss;
+        this.suppressStrategy = suppressStrategy;
     }
 
     public CastleFunction(){
@@ -124,8 +150,12 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     @Override
     public void processElement(Object input, ReadOnlyContext context, Collector output) {
 
+        TimerService ts = context.timerService();
+
         Tuple tuple = (Tuple) input;
-        tuple.setField(Instant.now(), 2); // TODO remove after testing
+        tuple.setField(ts.currentProcessingTime(), 2); // TODO remove after testing
+
+        eventTimeLag.update(ts.currentProcessingTime() - ts.currentWatermark());
 
         // Do not process any tuples without a rule set to follow
         if(rules == null) return;
@@ -133,7 +163,8 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         Cluster bestCluster = bestSelection(tuple);
         if(bestCluster == null){
             // Create a new cluster on 'input' and insert it into bigGamma
-            bestCluster = new Cluster(rules);
+            bestCluster = new Cluster(rules, showInfoLoss);
+            numCreatedClusters.inc();
             bigGamma.add(bestCluster);
         }
         // Push 'input' into bestCluster
@@ -160,6 +191,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 Cluster selected = ksClustersWithInput[random];
                 // Output 'input' with the generalization of the selected cluster
                 output.collect(selected.generalize(input));
+                numCollectedClustersKs.inc();
                 removeTuple(input);
                 return;
             }
@@ -170,11 +202,10 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             }
 
             if(m > (bigGamma.size()/2)){
-                // suppress t with the most generalized QI value
-                // TODO find out what 'most generalized QI' exactly means
-//                System.out.println("Outlier detected (m > (bigGamma.size()/2)): m:" + m + " bigGamma.size:" + bigGamma.size() + " input:" + input);
-//                output.collect(selected.generalize(input));
+                // suppress t based on suppressStrategy
+                if(suppressStrategy != 0) output.collect(suppressTuple(input));
                 removeTuple(input);
+                numSuppressedTuples.inc();
                 return;
             }
 
@@ -184,16 +215,58 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 //            int count = bigGamma.stream().collect(summingInt(cluster -> cluster.size()) );
             // it must also be checked that there exist at least 'l' distinct values of a_s among all clusters in bigGamma
             if(totalGammaSize < k || !checkDiversityBigGamma()){
-                // suppress t
-                // TODO find out what 'most generalized QI' exactly means
-//                System.out.println("Outlier detected (totalGammaSize(" + totalGammaSize + ") < k || !checkDiversityBigGamma()(" + !checkDiversityBigGamma() + ") < l):" + input);
-//                output.collect(selected.generalize(input));
+                // suppress t based on suppressStrategy
+                if(suppressStrategy != 0) output.collect(suppressTuple(input));
                 removeTuple(input);
+                numSuppressedTuples.inc();
                 return;
             }
 
             Cluster mergedCluster = mergeClusters(clusterWithInput);
             outputCluster(mergedCluster, output);
+        }
+    }
+
+    /**
+     * Generalizes the given tuple with the maximum generalization values
+     * @param input Tuple to generalize
+     * @return Generalized tuple
+     */
+    private Object suppressTuple(Tuple input) {
+        // null every QI value
+        if(suppressStrategy == 1) {
+            int inputArity = input.getArity();
+            if(showInfoLoss) inputArity++;
+            Tuple output = Tuple.newInstance(inputArity);
+
+            for (int i = 0; i < Math.min(inputArity, rules.length); i++) {
+                switch (rules[i].getGeneralizationType()) {
+                    case REDUCTION:
+                    case AGGREGATION:
+                    case NONNUMERICAL:
+                        output.setField(null, i);
+                        break;
+                    case NONE:
+                    case REDUCTION_WITHOUT_GENERALIZATION:
+                    case AGGREGATION_WITHOUT_GENERALIZATION:
+                    case NONNUMERICAL_WITHOUT_GENERALIZATION:
+                        output.setField(input.getField(i), i);
+                        break;
+                    default:
+                        System.out.println("ERROR: inside Cluster: undefined transformation type:" + rules[i]);
+                }
+            }
+            if(showInfoLoss) output.setField(1f,inputArity-1);
+            return output;
+        }else if(suppressStrategy == 2){
+            // generalize with the most generalized QI value
+            Cluster tempCluster = new Cluster(rules, showInfoLoss);
+            return tempCluster.generalizeMax(input);
+        }else{
+            System.out.println("ERROR: undefined suppress strategy! Strategy value:" + suppressStrategy);
+            int inputArity = input.getArity();
+            if(showInfoLoss) inputArity++;
+            return Tuple.newInstance(inputArity);
         }
     }
 
@@ -211,9 +284,13 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
         if(posSensibleAttributes.length == 1){
             // Calculate the amount of different values inside the sensible attribute and return true if bigger than l
-            Set<String> output = new HashSet<>();
+            // TODO test if correct (if object can be compared with object)
+            Set<Object> output = new HashSet<>();
             for(Tuple tuple: allBigGammaEntries){
-                output.add(tuple.getField(posSensibleAttributes[0]));
+                int pos = posSensibleAttributes[0];
+                // Check for arrays
+                Object sensAttributeValue = tuple.getField(pos).getClass().isArray() ? ((Object[]) tuple.getField(pos))[((Object[]) tuple.getField(pos)).length-1] : tuple.getField(pos);
+                output.add(sensAttributeValue);
                 if(output.size() >= l) return true;
             }
         }else {
@@ -248,7 +325,9 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     }
 
     private Cluster mergeClusters(Cluster input) {
+        numMergedCluster.inc();
         while(input.size() < k){
+            numMergedCluster.inc();
             float minEnlargement = Float.MAX_VALUE;
             Cluster clusterWithMinEnlargement = null;
             for(Cluster cluster: bigGamma){
@@ -291,6 +370,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         }
 
         for(Cluster cluster: clusters){
+            numCollectedClusters.inc();
             for(Tuple tuple: cluster.getAllEntries()){
                 output.collect(cluster.generalize(tuple));
                 globalTuples.remove(tuple);
@@ -311,10 +391,13 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     private void updateTau(float clusterInfoLoss) {
         recentInfoLoss.addLast(clusterInfoLoss);
         if(recentInfoLoss.size() > mu) recentInfoLoss.removeFirst();
+        infoLossHistogram.update(recentInfoLoss.getLast().longValue());
 
         float sum = 0;
         for(float recentIL: recentInfoLoss) sum = sum + recentIL;
         tau = sum / recentInfoLoss.size();
+
+        tauHistogram.update((long) tau);
     }
 
     /**
@@ -346,7 +429,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             Tuple selectedTuple = selectedBucket.get(0);
 
             // Create new sub-cluster with selectedTuple and remove it from original entry
-            Cluster newCluster = new Cluster(rules);
+            Cluster newCluster = new Cluster(rules, showInfoLoss);
             newCluster.addEntry(selectedTuple);
             selectedBucket.remove(0);
 
@@ -386,6 +469,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             // Add all tuples to cluster and delete the cluster
             if(nearestCluster != null) nearestCluster.addAllEntries(bucketEntry.getValue());
         }
+        numCreatedClustersSplit.inc(output.size());
         return output;
     }
 
@@ -419,7 +503,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             Tuple selectedTuple = selectedBucket.get(randomNum);
 
             // Create new sub-cluster with selectedTuple and remove it from original entry
-            Cluster newCluster = new Cluster(rules);
+            Cluster newCluster = new Cluster(rules, showInfoLoss);
             newCluster.addEntry(selectedTuple);
             selectedBucket.remove(randomNum);
             // Remove bucket if it has no values in them
@@ -501,6 +585,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             // Delete them from the input cluster
             input.removeAllEntries(idTuples);
         }
+        numCreatedClustersSplit.inc(output.size());
         return output;
     }
 
@@ -535,6 +620,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             for(Tuple tuple: input.getAllEntries()){
                 long tupleId = tuple.getField(posTupleId);
                 if(usedIds.add(tupleId)){
+                    // TODO check if it works with objects
                     output.putIfAbsent(tuple.getField(posSensibleAttributes[0]), new ArrayList<>());
                     output.get(tuple.getField(posSensibleAttributes[0])).add(tuple);
                     inputTuplesToDelete.add(tuple);
@@ -561,7 +647,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                     numOfAppearances.add(Tuple2.of(pos, temp));
                 }
                 Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> attEntry1.f1.getValue() > attEntry2.f1.getValue() ? 1 : -1).get();
-
                 // Remove all entries that have the least diverse attribute from input and add them to a bucket
                 String generatedKey = mapEntryToDelete.f0 + "-" + mapEntryToDelete.f1.getKey().toString();
                 ArrayList<Tuple> tuplesToDelete = new ArrayList<>(); // TODO-Later maybe use iterator to delete tuples if performance is better
@@ -575,7 +660,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                     }
                 }
                 oneIdTuples.removeAll(tuplesToDelete);
-
                 numOfAppearances.clear();
             }
         }
@@ -622,8 +706,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         for(Cluster cluster: bigOmega){
             if(cluster.enlargementValue(input) <= 0) output.add(cluster);
         }
-//        System.out.println("getClusterContaining (found inputs in bigOmega) BigOmega Size:" + bigOmega.size() + " found size:" + output.size()
-//                + " bigOmega:" + bigOmega.toString());
         return output.toArray(new Cluster[0]);
     }
 
@@ -672,6 +754,74 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             return okClusters.get(0);
         }
     }
+
+    // Metric section
+
+    @Override
+    public void open(Configuration config) throws Exception {
+        getRuntimeContext().getMetricGroup()
+                .addGroup("Prink")
+                .gauge("Tau (*100 as Int)", (Gauge<Integer>) () -> Math.round(tau*100));
+        getRuntimeContext().getMetricGroup()
+                .addGroup("Prink")
+                .gauge("Information Loss (*100 as Int)", (Gauge<Integer>) () -> Math.round(recentInfoLoss.getLast()*100));
+        getRuntimeContext().getMetricGroup()
+                .addGroup("Prink")
+                .gauge("k-Value", (Gauge<Integer>) () -> k);
+        getRuntimeContext().getMetricGroup()
+                .addGroup("Prink")
+                .gauge("l-Value", (Gauge<Integer>) () -> l);
+        getRuntimeContext().getMetricGroup()
+                .addGroup("Prink")
+                .gauge("Sensible Attributes", (Gauge<Integer>) () -> posSensibleAttributes.length);
+        getRuntimeContext().getMetricGroup()
+                .addGroup("Prink")
+                .gauge("Global Tuple Size", (Gauge<Integer>) () -> globalTuples.size());
+        // Counter section
+        this.numSuppressedTuples = getRuntimeContext()
+                .getMetricGroup()
+                .addGroup("Prink","Counter")
+                .counter("Suppressed Tuples");
+        this.numMergedCluster = getRuntimeContext()
+                .getMetricGroup()
+                .addGroup("Prink","Counter")
+                .counter("Merged Clusters");
+        this.numCollectedClusters = getRuntimeContext()
+                .getMetricGroup()
+                .addGroup("Prink","Counter")
+                .counter("Collected Cluster (normal)");
+        this.numCollectedClustersKs = getRuntimeContext()
+                .getMetricGroup()
+                .addGroup("Prink","Counter")
+                .counter("Collected Cluster (ks)");
+        this.numCreatedClusters = getRuntimeContext()
+                .getMetricGroup()
+                .addGroup("Prink","Counter")
+                .counter("Created Clusters (normal)");
+        this.numCreatedClustersSplit = getRuntimeContext()
+                .getMetricGroup()
+                .addGroup("Prink","Counter")
+                .counter("Created Clusters (split)");
+        // Meter section
+//        this.numSuppressedTuples = getRuntimeContext()
+//                .getMetricGroup()
+//                .addGroup("Prink","Meter")
+//                .meter("myMeter", new MyMeter());
+        // Histogramm section
+        this.eventTimeLag = getRuntimeContext()
+                .getMetricGroup()
+                .addGroup("Prink")
+                .histogram("eventTimeLag", new DescriptiveStatisticsHistogram(10000));
+        this.tauHistogram = getRuntimeContext()
+                .getMetricGroup()
+                .addGroup("Prink")
+                .histogram("Tau", new DescriptiveStatisticsHistogram(10000));
+        this.infoLossHistogram = getRuntimeContext()
+                .getMetricGroup()
+                .addGroup("Prink")
+                .histogram("Information Loss", new DescriptiveStatisticsHistogram(10000));
+    }
+
 
     // State section
 

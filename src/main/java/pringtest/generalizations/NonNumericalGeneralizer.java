@@ -12,6 +12,7 @@ import java.util.List;
 public class NonNumericalGeneralizer implements BaseGeneralizer{
 
     private final CastleRule[] config;
+    private final String ROOT_NAME = "<blank>";
     private final HashMap<Integer, TreeNode> trees = new HashMap<>();
 
     public NonNumericalGeneralizer(CastleRule[] rules){
@@ -19,7 +20,7 @@ public class NonNumericalGeneralizer implements BaseGeneralizer{
         // Add rule defined trees to the generalizer
         for(int i = 0; i < rules.length; i++){
             if(rules[i].getGeneralizationType() == CastleFunction.Generalization.NONNUMERICAL && rules[i].getTreeEntries() != null){
-                TreeNode tree = new TreeNode("<blank>");
+                TreeNode tree = new TreeNode(ROOT_NAME);
                 for(String[] treeEntry: rules[i].getTreeEntries()){
                     tree.addByArray(treeEntry, true);
                 }
@@ -60,6 +61,11 @@ public class NonNumericalGeneralizer implements BaseGeneralizer{
         trees.get(pos).removeTempNodes();
 
         return output;
+    }
+
+    @Override
+    public Tuple2<String, Float> generalizeMax(int pos) {
+        return Tuple2.of(ROOT_NAME, 1.0f);
     }
 
     public void updateTree(Tuple input) {

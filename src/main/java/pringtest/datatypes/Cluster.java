@@ -24,8 +24,9 @@ public class Cluster {
     boolean showInfoLoss = false;
     boolean showEnlargement = false;
 
-    public Cluster(CastleRule[] rules) {
+    public Cluster(CastleRule[] rules, boolean showInfoLoss) {
         this.config = rules;
+        this.showInfoLoss = showInfoLoss;
         aggreGeneralizer = new AggregationGeneralizer(config);
         reductGeneralizer = new ReductionGeneralizer(this);
         nonNumGeneralizer = new NonNumericalGeneralizer(config);
@@ -77,7 +78,6 @@ public class Cluster {
             }
         }
         double sumWith = Arrays.stream(infoLossWith).sum();
-        if(showInfoLoss) System.out.println("InfoLossTuple with: " + Arrays.toString(infoLossWith) + " Result:" + ((float) sumWith) / config.length);
         return ((float) sumWith) / config.length;
     }
 
@@ -107,7 +107,6 @@ public class Cluster {
             }
         }
         double sumWith = Arrays.stream(infoLoss).sum();
-        if(showInfoLoss) System.out.println("InfoLoss with: " + Arrays.toString(infoLoss) + " Result:" + ((float) sumWith) / config.length);
         return ((float) sumWith) / config.length;
     }
 
@@ -115,6 +114,7 @@ public class Cluster {
 
         // Return new tuple with generalized field values
         int inputArity = input.getArity();
+        if(showInfoLoss) inputArity++;
         Tuple output = Tuple.newInstance(inputArity);
 
         for (int i = 0; i < Math.min(inputArity, config.length); i++) {
@@ -138,6 +138,46 @@ public class Cluster {
                     System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
             }
         }
+        if(showInfoLoss) output.setField(infoLoss(),inputArity-1);
+        return output;
+    }
+
+    /**
+     * Generalizes the input tuple with the maximum generalization of the generalizers
+     * (Can be used on an cluster without entries)
+     * @param input Tuple to generalize
+     * @return Maximal generalized tuple
+     */
+    public Tuple generalizeMax(Tuple input) {
+
+        // Return new tuple with generalized field values
+        int inputArity = input.getArity();
+        if(showInfoLoss) inputArity++;
+        Tuple output = Tuple.newInstance(inputArity);
+
+        for (int i = 0; i < Math.min(inputArity, config.length); i++) {
+            switch (config[i].getGeneralizationType()) {
+                case REDUCTION:
+                    // TODO maybe replace every value with chars to prevent suppressed tuple detection
+                    output.setField(reductGeneralizer.generalizeMax(i).f0, i);
+                    break;
+                case AGGREGATION:
+                    output.setField(aggreGeneralizer.generalizeMax(i).f0, i);
+                    break;
+                case NONNUMERICAL:
+                    output.setField(nonNumGeneralizer.generalizeMax(i).f0, i);
+                    break;
+                case NONE:
+                case REDUCTION_WITHOUT_GENERALIZATION:
+                case AGGREGATION_WITHOUT_GENERALIZATION:
+                case NONNUMERICAL_WITHOUT_GENERALIZATION:
+                    output.setField(input.getField(i), i);
+                    break;
+                default:
+                    System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
+            }
+        }
+        if(showInfoLoss) output.setField(1.0f,inputArity-1);
         return output;
     }
 
@@ -190,10 +230,15 @@ public class Cluster {
     public int diversity(int[] posSensibleAttributes) {
         if(posSensibleAttributes.length <= 0) return 0;
         if(posSensibleAttributes.length == 1){
-            // TODO test if correct
+            // TODO test if correct (if object can be compared with object)
             // Return the amount of different values inside the sensible attribute
-            Set<String> output = new HashSet<>();
-            for(Tuple tuple: entries) output.add(tuple.getField(posSensibleAttributes[0]));
+            Set<Object> output = new HashSet<>();
+            for(Tuple tuple: entries){
+                int pos = posSensibleAttributes[0];
+                // Check for arrays
+                Object sensAttributeValue = tuple.getField(pos).getClass().isArray() ? ((Object[]) tuple.getField(pos))[((Object[]) tuple.getField(pos)).length-1] : tuple.getField(pos);
+                output.add(sensAttributeValue);
+            }
             return output.size();
         }else{
             // See for concept: https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1
@@ -205,18 +250,37 @@ public class Cluster {
                 counter++;
                 for (int pos : posSensibleAttributes) {
                     // TODO check if two strings are added to the same grouping if they have the same value but are different objects
-                    Map.Entry<Object, Long> temp = entriesCopy.stream().collect(Collectors.groupingBy(s -> s.getField(pos), Collectors.counting()))
+                    Map.Entry<Object, Long> temp = entriesCopy.stream().collect(Collectors.groupingBy(s -> (s.getField(pos).getClass().isArray() ? ((Object[]) s.getField(pos))[((Object[]) s.getField(pos)).length-1] : s.getField(pos)), Collectors.counting()))
                             .entrySet().stream().max((attEntry1, attEntry2) -> attEntry1.getValue() > attEntry2.getValue() ? 1 : -1).get();
                     numOfAppearances.add(Tuple2.of(pos, temp));
                 }
                 Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> attEntry1.f1.getValue() > attEntry2.f1.getValue() ? 1 : -1).get();
-//                System.out.println("Least diverse attribute value:" + mapEntryToDelete.toString() + " Counter:" + counter + " CopySize:" + entriesCopy.size() + " OriginalSize:" + entries.size());
                 // Remove all entries that have the least diverse attribute
-                entriesCopy.removeIf(i -> i.getField(mapEntryToDelete.f0).equals(mapEntryToDelete.f1.getKey()));
+                ArrayList<Tuple> tuplesToDelete = new ArrayList<>(); // TODO-Later maybe use iterator to delete tuples if performance is better
+                for(Tuple tuple: entriesCopy){
+                    // adjust to find also values from arrays TODO re-write
+                    Object toCompare = (tuple.getField(mapEntryToDelete.f0).getClass().isArray() ? ((Object[]) tuple.getField(mapEntryToDelete.f0))[((Object[]) tuple.getField(mapEntryToDelete.f0)).length-1] : tuple.getField(mapEntryToDelete.f0));
+                    if(toCompare.equals(mapEntryToDelete.f1.getKey())){
+                        tuplesToDelete.add(tuple);
+                    }
+                }
+                entriesCopy.removeAll(tuplesToDelete);
                 numOfAppearances.clear();
             }
 //            System.out.println("Diversity:" + counter);
             return counter;
         }
     }
+
+//    @Override
+//    public String toString() {
+//        return "Cluster{" +
+//                "config=" + Arrays.toString(config) +
+//                ", entries size=" + entries.size() +
+//                ", entries=" + entries +
+////                ", aggreGeneralizer=" + aggreGeneralizer +
+////                ", reductGeneralizer=" + reductGeneralizer +
+////                ", nonNumGeneralizer=" + nonNumGeneralizer +
+//                '}';
+//    }
 }

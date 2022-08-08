@@ -25,7 +25,7 @@ under the License.
 	<version>0.1</version>
 	<packaging>jar</packaging>
 
-	<name>Flink Walkthrough DataStream Java</name>
+	<name>Privacy-Preserving Flink</name>
 	<url>https://flink.apache.org</url>
 
 	<properties>
@@ -104,6 +104,28 @@ under the License.
 			<version>${log4j.version}</version>
 			<scope>runtime</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<version>RELEASE</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.openjdk.jmh</groupId>
+			<artifactId>jmh-core</artifactId>
+			<version>1.35</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-test-utils</artifactId>
+			<version>1.16-SNAPSHOT</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.openjdk.jmh</groupId>
+			<artifactId>jmh-generator-annprocess</artifactId>
+			<version>1.35</version>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -156,7 +178,7 @@ under the License.
 							</filters>
 							<transformers>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-									<mainClass>spendreport.FraudDetectionJob</mainClass>
+									<mainClass>pringtest.PrinkInformationReduction</mainClass>
 								</transformer>
 							</transformers>
 						</configuration>
