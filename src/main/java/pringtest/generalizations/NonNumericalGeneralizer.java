@@ -2,8 +2,11 @@ package pringtest.generalizations;
 
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import pringtest.CastleFunction;
 import pringtest.datatypes.CastleRule;
+import pringtest.datatypes.Cluster;
 import pringtest.datatypes.TreeNode;
 
 import java.util.HashMap;
@@ -14,6 +17,8 @@ public class NonNumericalGeneralizer implements BaseGeneralizer{
     private final CastleRule[] config;
     private final String ROOT_NAME = "<blank>";
     private final HashMap<Integer, TreeNode> trees = new HashMap<>();
+
+    private static final Logger LOG = LoggerFactory.getLogger(NonNumericalGeneralizer.class);
 
     public NonNumericalGeneralizer(CastleRule[] rules){
         this.config = rules;
@@ -33,7 +38,7 @@ public class NonNumericalGeneralizer implements BaseGeneralizer{
     @Override
     public Tuple2<String, Float> generalize(int pos) {
         if(!trees.containsKey(pos)){
-            System.out.println("ERROR: Try to generalize a non existing tree! Key:" + pos + " existing keys:" + trees.keySet());
+            LOG.error("Try to generalize with a non existing tree! Tree-Key: {} Existing Tree-Keys: {}", pos, trees.keySet());
             return Tuple2.of("ERROR: Missing tree for position:" + pos, 9999.0f);
         }
         return trees.get(pos).getGeneralization(false);
@@ -42,7 +47,7 @@ public class NonNumericalGeneralizer implements BaseGeneralizer{
     @Override
     public Tuple2<String, Float> generalize(List<Tuple> withTuples, int pos) {
         if(!trees.containsKey(pos)){
-            System.out.println("ERROR: Try to generalize a non existing tree! Key:" + pos + " existing keys:" + trees.keySet());
+            LOG.error("Try to generalize with a non existing tree! Tree-Key: {} Existing Tree-Keys: {}", pos, trees.keySet());
             return Tuple2.of("ERROR: Missing tree for position:" + pos, 9999.0f);
         }
 

@@ -1,6 +1,9 @@
 package pringtest.datatypes;
 
 import org.apache.flink.api.java.tuple.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import pringtest.CastleFunction;
 import pringtest.generalizations.AggregationGeneralizer;
 import pringtest.generalizations.NonNumericalGeneralizer;
 import pringtest.generalizations.ReductionGeneralizer;
@@ -18,6 +21,8 @@ public class Cluster {
     private final ReductionGeneralizer reductGeneralizer;
     private final NonNumericalGeneralizer nonNumGeneralizer;
 
+    private static final Logger LOG = LoggerFactory.getLogger(Cluster.class);
+
     // DEBUG params
     boolean showRemoveEntry = false;
     boolean showAddedEntry = false;
@@ -33,13 +38,13 @@ public class Cluster {
     }
 
     public Float enlargementValue(Cluster input) {
-        if(entries.size() <= 0) System.out.println("ERROR: enlargementValue(Cluster) called on cluster with size: 0 cluster:" + this);
+        if(entries.size() <= 0) LOG.error("enlargementValue(Cluster) called on cluster with size: 0 ");
         if(showEnlargement) System.out.println("Enlargement Value Cluster:" + (informationLossWith(input) - infoLoss()));
         return informationLossWith(input) - infoLoss();
     }
 
     public Float enlargementValue(Tuple input) {
-        if(entries.size() <= 0) System.out.println("ERROR: enlargementValue(tuple) called on cluster with size: 0 cluster:" + this);
+        if(entries.size() <= 0) LOG.error("enlargementValue(tuple) called on cluster with size: 0");
         if(showEnlargement) System.out.println("Enlargement Value Tuple:" + (informationLossWith(input) - infoLoss()));
         return informationLossWith(input) - infoLoss();
     }
@@ -53,7 +58,7 @@ public class Cluster {
     }
 
     private float informationLossWith(List<Tuple> input) {
-        if(entries.size() <= 0) System.out.println("ERROR: informationLossWith() called on cluster with size: 0 cluster:" + this);
+        if(entries.size() <= 0) LOG.error("informationLossWith() called on cluster with size: 0");
         double[] infoLossWith = new double[config.length];
 
         for (int i = 0; i < config.length; i++) {
@@ -74,7 +79,7 @@ public class Cluster {
                     infoLossWith[i] = nonNumGeneralizer.generalize(input, i).f1;
                     break;
                 default:
-                    System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
+                    LOG.error("informationLossWith() -> undefined transformation type: {}", config[i]);
             }
         }
         double sumWith = Arrays.stream(infoLossWith).sum();
@@ -82,7 +87,7 @@ public class Cluster {
     }
 
     public float infoLoss() {
-        if(entries.size() <= 0) System.out.println("ERROR: infoLoss() called on cluster with size: 0 cluster:" + this);
+        if(entries.size() <= 0) LOG.error("infoLoss() called on cluster with size: 0");
         double[] infoLoss = new double[config.length];
 
         for (int i = 0; i < config.length; i++) {
@@ -103,7 +108,7 @@ public class Cluster {
                     infoLoss[i] = nonNumGeneralizer.generalize(i).f1;
                     break;
                 default:
-                    System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
+                    LOG.error("infoLoss() -> undefined transformation type: {}", config[i]);
             }
         }
         double sumWith = Arrays.stream(infoLoss).sum();
@@ -135,7 +140,7 @@ public class Cluster {
                     output.setField(input.getField(i), i);
                     break;
                 default:
-                    System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
+                    LOG.error("generalize -> undefined transformation type: {}", config[i]);
             }
         }
         if(showInfoLoss) output.setField(infoLoss(),inputArity-1);
@@ -174,7 +179,7 @@ public class Cluster {
                     output.setField(input.getField(i), i);
                     break;
                 default:
-                    System.out.println("ERROR: inside Cluster: undefined transformation type:" + config[i]);
+                    LOG.error("generalizeMax -> undefined transformation type: {}", config[i]);
             }
         }
         if(showInfoLoss) output.setField(1.0f,inputArity-1);
@@ -267,20 +272,7 @@ public class Cluster {
                 entriesCopy.removeAll(tuplesToDelete);
                 numOfAppearances.clear();
             }
-//            System.out.println("Diversity:" + counter);
             return counter;
         }
     }
-
-//    @Override
-//    public String toString() {
-//        return "Cluster{" +
-//                "config=" + Arrays.toString(config) +
-//                ", entries size=" + entries.size() +
-//                ", entries=" + entries +
-////                ", aggreGeneralizer=" + aggreGeneralizer +
-////                ", reductGeneralizer=" + reductGeneralizer +
-////                ", nonNumGeneralizer=" + nonNumGeneralizer +
-//                '}';
-//    }
 }

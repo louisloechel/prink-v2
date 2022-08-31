@@ -19,10 +19,11 @@ import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
 import org.apache.flink.util.Collector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import pringtest.datatypes.CastleRule;
 import pringtest.datatypes.Cluster;
 
-import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -51,6 +52,8 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     private transient DescriptiveStatisticsHistogram tauHistogram;
     private transient DescriptiveStatisticsHistogram infoLossHistogram;
 
+    private static final Logger LOG = LoggerFactory.getLogger(CastleFunction.class);
+
     private CastleRule[] rules;
 
     private final MapStateDescriptor<Integer, CastleRule> ruleStateDescriptor =
@@ -66,7 +69,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     /** Value l for l-diversity (if 0 l-diversity is not applied) */
     private int l = 2;
     /** Number of 'delayed' tuples */
-    private int delta = 2; // 20
+    private int delta = 20;
     /** Max number of clusters in bigGamma */
     private int beta = 50;
     /** Max number of clusters in bigOmega */
@@ -113,7 +116,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     @Override
     public void processBroadcastElement(Object input, Context context, Collector collector) throws Exception {
         CastleRule rule = (CastleRule) input;
-        System.out.println("RULE TRANSMITTED: Position:" + rule.getPosition() + " rule:" + rule.toString());
+        LOG.info("Rule received: {}", rule.toString());
 
         BroadcastState<Integer, CastleRule> currentRuleState = context.getBroadcastState(ruleStateDescriptor);
 
@@ -140,11 +143,10 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         }
         posSensibleAttributes = newPos.stream().mapToInt(i -> i).toArray();
 
-        // TODO-Later remove after testing
-        System.out.println("RULE TRANSMISSION: Updated rules:");
-        for(CastleRule r: rules){
-            System.out.println("Rule " + r.getPosition() + ": " + r.toString());
-        }
+        // TODO-Later convert into Apache Flink Gauge
+//        for(CastleRule r: rules){
+//            System.out.println("Rule " + r.getPosition() + ": " + r.toString());
+//        }
     }
 
     @Override
@@ -178,7 +180,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     private void delayConstraint(Tuple input, Collector output) {
         Cluster clusterWithInput = getClusterContaining(input);
         if(clusterWithInput == null){
-            System.out.println("ERROR: delayConstraint -> clusterWithInput is NULL");
+            LOG.error("delayConstraint -> clusterWithInput is NULL");
             return;
         }
 
@@ -253,7 +255,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                         output.setField(input.getField(i), i);
                         break;
                     default:
-                        System.out.println("ERROR: inside Cluster: undefined transformation type:" + rules[i]);
+                        LOG.error("suppressTuple -> undefined transformation type: {}", rules[i]);
                 }
             }
             if(showInfoLoss) output.setField(1f,inputArity-1);
@@ -263,7 +265,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             Cluster tempCluster = new Cluster(rules, showInfoLoss);
             return tempCluster.generalizeMax(input);
         }else{
-            System.out.println("ERROR: undefined suppress strategy! Strategy value:" + suppressStrategy);
+            LOG.error("suppressTuple -> undefined suppress strategy! Strategy value: {}", suppressStrategy);
             int inputArity = input.getArity();
             if(showInfoLoss) inputArity++;
             return Tuple.newInstance(inputArity);
@@ -404,7 +406,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
      * Remove the first value inside bigOmega if the size exceeds zeta
      */
     private void updateBigOmega() {
-        // TODO-Maybe (remove all entries with infoLoss bigger than tau)
         if(bigOmega.size() > zeta){
             bigOmega.removeFirst();
         }
@@ -416,7 +417,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
      * @return Collection on newly generated sub-clusters
      */
     private Collection<Cluster> split(Cluster input) {
-        // Output cluster. See 'SC' in CASTLE definition
+        // Output cluster. See 'SC' in CASTLE Paper definition
         ArrayList<Cluster> output = new ArrayList<>();
         HashMap<Long, ArrayList<Tuple>> buckets = generateBuckets(input);
 
@@ -759,6 +760,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
     @Override
     public void open(Configuration config) throws Exception {
+        // Gauge section
         getRuntimeContext().getMetricGroup()
                 .addGroup("Prink")
                 .gauge("Tau (*100 as Int)", (Gauge<Integer>) () -> Math.round(tau*100));
@@ -777,6 +779,9 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         getRuntimeContext().getMetricGroup()
                 .addGroup("Prink")
                 .gauge("Global Tuple Size", (Gauge<Integer>) () -> globalTuples.size());
+        getRuntimeContext()
+                .getMetricGroup()
+                .gauge("Prink", (Gauge<CastleRule[]>) () -> rules);
         // Counter section
         this.numSuppressedTuples = getRuntimeContext()
                 .getMetricGroup()
