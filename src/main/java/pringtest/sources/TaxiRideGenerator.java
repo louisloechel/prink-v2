@@ -33,7 +33,7 @@ import java.util.Random;
  */
 public class TaxiRideGenerator implements SourceFunction<TaxiRide> {
 
-    public static final int SLEEP_MILLIS_PER_EVENT = 10;
+    public static final int SLEEP_MILLIS_PER_EVENT = 5;
     private static final int BATCH_SIZE = 5;
     private volatile boolean running = true;
 

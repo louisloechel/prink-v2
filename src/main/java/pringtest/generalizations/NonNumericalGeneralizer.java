@@ -6,7 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pringtest.CastleFunction;
 import pringtest.datatypes.CastleRule;
-import pringtest.datatypes.Cluster;
 import pringtest.datatypes.TreeNode;
 
 import java.util.HashMap;

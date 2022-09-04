@@ -98,10 +98,8 @@ public class PrinkInformationReduction {
         rules.add(new CastleRule(6, CastleFunction.Generalization.NONE, Tuple2.of(0f,200f), true));
         rules.add(new CastleRule(7, CastleFunction.Generalization.NONE, Tuple2.of(10f,500f), true));
 
-        DataStream<CastleRule> ruleStream = env.fromCollection(rules);
-
         // TODO add timed check. See https://nightlies.apache.org/flink/flink-docs-master/docs/dev/datastream/overview/#data-sources
-        BroadcastStream<CastleRule> ruleBroadcastStream = ruleStream
+        BroadcastStream<CastleRule> ruleBroadcastStream = env.fromCollection(rules)
                 .broadcast(ruleStateDescriptor);
 
         DataStream<Tuple8<Object, Object, Object, Object,Object, Object, Object, Object>> privateFares = fares
