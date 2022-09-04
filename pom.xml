@@ -126,6 +126,17 @@ under the License.
 			<artifactId>jmh-generator-annprocess</artifactId>
 			<version>1.35</version>
 		</dependency>
+		<!--	TODO remove after testing	-->
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-csv</artifactId>
+			<version>1.15.2</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-connector-files</artifactId>
+			<version>1.15.2</version>
+		</dependency>
 	</dependencies>
 
 	<build>
