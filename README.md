@@ -1,92 +1,126 @@
 # Prink
 
-Prink (Privacy-Preserving Flink) is an implementation of the CASTLE library into the streaming framework Apache Flink.
+Prink (Privacy-Preserving Flink) is an implementation of the [CASTLE library](https://ieeexplore.ieee.org/document/5374415) into the streaming framework [Apache Flink](https://flink.apache.org/).
 
 ## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://git.tu-berlin.de/p.groneberg/prink.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](https://git.tu-berlin.de/p.groneberg/prink/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!).  Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+- Install Apache Flink following the official installation [instructions](https://nightlies.apache.org/flink/flink-docs-release-1.15//docs/try-flink/local_installation/).
+- Clone repository
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+To use Prink add the `CastleFunction` as a process into your data stream using `.process()`:
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+	.process(new CastleFunction())
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Make sure to key your data stream by the user identifier using the `.keyBy()` function (in the example below user_id is at field position 0):
+
+	.keyBy(dataTuple -> dataTuple.getField(0))
+
+Add a `ruleBroadcastStream` using the `.connect()` function to be able to communicate with Prink and to set rules:
+
+	.connect(ruleBroadcastStream)
+
+You can use your own implementation for the `ruleBroadcastStream` or if you only want to transfer some rules at startup a collection generated stream (see below for example).
+Prink uses a `MapState` for rule broascasting:
+
+	MapStateDescriptor<Integer, CastleRule> ruleStateDescriptor =
+                new MapStateDescriptor<>(
+                        "RulesBroadcastState",
+                        BasicTypeInfo.INT_TYPE_INFO,
+                        TypeInformation.of(new TypeHint<CastleRule>(){}));
+
+    ArrayList<CastleRule> rules = new ArrayList<>();
+        rules.add(new CastleRule(0, CastleFunction.Generalization.REDUCTION, false));
+        rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f,90f), false));
+        rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, true));
+
+	BroadcastStream<CastleRule> ruleBroadcastStream = env
+                .fromCollection(rules)
+                .broadcast(ruleStateDescriptor);
+
+Currently it is needed to specify the return type of the data stream. Use the `.returns()` function to do so (change the `Tuple` size for your project).
+
+	.returns(TypeInformation.of(new TypeHint<Tuple4<Object, Object, Object, Object>>(){}));
+
+The complete Prink integration should look something like this (excluding the rule broadcast stream):
+
+	DataStream<Tuple4<Object, Object, Object, Object>> myDataStream = env
+                .addSource(new MySource())
+
+	DataStream<Tuple4<Object, Object, Object, Object>> myPrinkDataStream = myDataStream
+                .keyBy(dataTuple -> dataTuple.getField(0))
+                .connect(ruleBroadcastStream)
+                .process(new CastleFunction())
+                .returns(TypeInformation.of(new TypeHint<Tuple4<Object, Object, Object, Object,>>(){}));
+
+To run your Flink job follow the offical Flink [documentation](https://nightlies.apache.org/flink/flink-docs-master/docs/deployment/cli/) or if you use the local installation run the following commands.
+
+To start your Flink cluster run:
+
+    $ ./bin/start-cluster.sh
+
+To start your Flink job run:
+
+	$ ./bin/flink run <your-flink-job>.jar
+
+To stop your Flink cluster run:
+
+	$ ./bin/stop-cluster.sh
+
+---
+
+To change the parameters of Prink add them when creating the `CastleFunction`:
+
+	new CastleFunction(0, 50, 2, 200, 50, 50, 50, true, 2)
+
+The parameters are the following:
+
+| Name             | Type    | Default | Description                                                                                     |
+|------------------|---------|---------|-------------------------------------------------------------------------------------------------|
+| posTupleId       | int     | 0       | Position of the id value inside the tuples                                                      |
+| k                | int     | 5       | Value k for k-anonymity                                                                         |
+| l                | int     | 2       | Value l for l-diversity (if 0 l-diversity is not applied)                                       |
+| delta            | int     | 20      | Number of 'delayed' tuples                                                                      |
+| beta             | int     | 50      | Max number of clusters in bigGamma                                                              |
+| zeta             | int     | 10      | Max number of clusters in bigOmega                                                              |
+| mu               | int     | 10      | Number of last infoLoss values considered for tau                                               |
+| showInfoLoss     | boolean | false   | If true Prink adds the info loss of a tuple at the end of the tuple (tuple size increases by 1) |
+| suppressStrategy | int     | 2       | Defines how to handle tuples that need to be suppressed.                                        |
+
+## Prink Rules
+For the anonymization of the data stream Prink uses `CastleRules` to define how each data attribute should be handeld. These rules are broadcasted to the `CastleFunction` process and have the following structure:
+
+| Name                   | Type                          | Allowed Values       | Usage                                                                    |
+|------------------------|-------------------------------|----------------------|--------------------------------------------------------------------------|
+| position               | int                           | 0-max size of Tuple  | Defines the position inside the data tuple that the rule should apply to |
+| generalizationType     | CastleFunction.Generalization | enum provided values | Defines how the attribute at the defined position should be generalized  |
+| domain (Optional)      | Tuple2<Float,Float>           | Tuple2<min Value, max Value>  | Defines to minimal and maximal value for the AggregationGeneralizer      |
+| treeEntries (Optional) | ArrayList<String[]>           | ArrayList<String[]>  | Defines the tree structure to be used for the NonNumericalGeneralizer    |
+| isSensibleAttribute    | boolean                       | [true, false]        | Defines if the position inside the data tuple is a sensible attribute    |
+
+## Prink Generalizers
+Currently Prink provides the following Generalizers for the data:
+
+| generalizationType                  | Example Rule                                                                                                   | Generalization Result |
+|-------------------------------------|----------------------------------------------------------------------------------------------------------------|-----------------------|
+| REDUCTION                           | `new CastleRule(5, CastleFunction.Generalization.REDUCTION, false)`                                              | [123456, 12789, 12678] -> 12****             |
+| AGGREGATION                         | `new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f), false)`                        |  [20, 22, 35] -> [20-35]                   |
+| NONNUMERICAL                        | `new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEntries, false)`                              | (see Non-Numercial-Generalizer Chapter) |
+| REDUCTION_WITHOUT_GENERALIZATION    | `new CastleRule(5, CastleFunction.Generalization.REDUCTION_WITHOUT_GENERALIZATION, false)`                       | [123456, 12789, 12678] -> [123456, 12789, 12678] |
+| AGGREGATION_WITHOUT_GENERALIZATION  | `new CastleRule(5, CastleFunction.Generalization.AGGREGATION_WITHOUT_GENERALIZATION, Tuple2.of(0f,100f), false)` | [20, 22, 35] -> [20, 22, 35] |
+| NONNUMERICAL_WITHOUT_GENERALIZATION | `new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL_WITHOUT_GENERALIZATION, treeEntries, false)`       | No data change (see Non-Numercial-Generalizer Chapter) |
+| NONE                                | `new CastleRule(5, CastleFunction.Generalization.NONE, false)` | No data change  |
+
+### Non-Numerical-Generalizer
+*WIP*
+
+### Add your own Generalizer
+*WIP*
+
+## Metrics
+*WIP*
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+*WIP*
 
 ## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+The project will be open source. *WIP*
