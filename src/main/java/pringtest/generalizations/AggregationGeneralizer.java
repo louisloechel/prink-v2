@@ -4,7 +4,6 @@ import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import pringtest.CastleFunction;
 import pringtest.datatypes.CastleRule;
-import pringtest.datatypes.TreeNode;
 
 import java.util.HashMap;
 import java.util.List;
@@ -67,7 +66,8 @@ public class AggregationGeneralizer implements BaseGeneralizer{
      * @return information loss of the give position and values
      */
     private float infoLoss(int pos, float min, float max){
-        return ((max - min) / (domainRanges.get(pos).f1 - domainRanges.get(pos).f0));
+        if(min == max) return 0.0f;
+        return Math.min((max - min) / (domainRanges.get(pos).f1 - domainRanges.get(pos).f0), 1.0f);
     }
     
     /**
@@ -77,11 +77,12 @@ public class AggregationGeneralizer implements BaseGeneralizer{
     public void updateAggregationBounds(Tuple input) {
         for (int i = 0; i < config.length; i++) {
             if (config[i].getGeneralizationType() == CastleFunction.Generalization.AGGREGATION) {
+                float inputValue = ((Number) input.getField(i)).floatValue();
                 if (!aggregationRanges.containsKey(i)) {
-                    aggregationRanges.put(i, new Tuple2<>(input.getField(i), input.getField(i)));
+                    aggregationRanges.put(i, new Tuple2<>(inputValue, inputValue));
                 } else {
-                    aggregationRanges.get(i).f0 = Math.min(input.getField(i), aggregationRanges.get(i).f0);
-                    aggregationRanges.get(i).f1 = Math.max(input.getField(i), aggregationRanges.get(i).f1);
+                    aggregationRanges.get(i).f0 = Math.min(inputValue, aggregationRanges.get(i).f0);
+                    aggregationRanges.get(i).f1 = Math.max(inputValue, aggregationRanges.get(i).f1);
                 }
                 updateDomainBounds(i);
             }
@@ -96,9 +97,13 @@ public class AggregationGeneralizer implements BaseGeneralizer{
     private void updateDomainBounds(int pos){
         if(domainRanges.containsKey(pos)){
             domainRanges.get(pos).f0 = Math.min(aggregationRanges.get(pos).f0, domainRanges.get(pos).f0);
-            domainRanges.get(pos).f1 = Math.max(aggregationRanges.get(pos).f0, domainRanges.get(pos).f1);
+            domainRanges.get(pos).f1 = Math.max(aggregationRanges.get(pos).f1, domainRanges.get(pos).f1);
         }else{
             domainRanges.put(pos, Tuple2.of(aggregationRanges.get(pos).f0, aggregationRanges.get(pos).f1));
         }
+    }
+
+    public Tuple2<Float, Float> getDomainRange(int pos) {
+        return domainRanges.get(pos);
     }
 }

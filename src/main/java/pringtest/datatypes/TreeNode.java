@@ -14,7 +14,7 @@ public class TreeNode implements Comparable<TreeNode>{
     private int coverageTemporary = 0;
     private boolean showInfoLoss = false;
 
-    public TreeNode(String content, TreeNode parent, boolean isTemporary){
+    public TreeNode(String content, TreeNode parent){
         this.content = content;
         this.parent = parent;
     }
@@ -27,11 +27,10 @@ public class TreeNode implements Comparable<TreeNode>{
     /**
      * Adds a node as a child
      * @param input Value to add as new node
-     * @param isTemporary If the node is just temporary added to the tree
      * @return The added tree node
      */
-    private TreeNode addNode(String input,boolean isTemporary){
-        TreeNode newNode = new TreeNode(input, this, isTemporary);
+    private TreeNode addNode(String input){
+        TreeNode newNode = new TreeNode(input, this);
         children.add(newNode);
         return newNode;
     }
@@ -66,7 +65,7 @@ public class TreeNode implements Comparable<TreeNode>{
                 // ContainingNode is the smallest value of the input (the value with the most information aka the leaf)
                 TreeNode containingNode = foundNode;
                 for(int j = i+1; j < input.length; j++) {
-                    containingNode = containingNode.addNode(input[j], isTemporary);
+                    containingNode = containingNode.addNode(input[j]);
                 }
                 containingNode.updateParentCoverage(isTemporary);
                 return;
@@ -76,7 +75,7 @@ public class TreeNode implements Comparable<TreeNode>{
         // ContainingNode is the smallest value of the input (the value with the most information aka the leaf)
         TreeNode containingNode = this;
         for(String value: input) {
-            containingNode = containingNode.addNode(value, isTemporary);
+            containingNode = containingNode.addNode(value);
         }
         containingNode.updateParentCoverage(isTemporary);
     }
@@ -88,7 +87,7 @@ public class TreeNode implements Comparable<TreeNode>{
     public void addByName(String input, boolean isTemporary){
         TreeNode containingNode = containsContent(input);
         if(containingNode == null){
-            containingNode = addNode(input, isTemporary);
+            containingNode = addNode(input);
         }
         containingNode.updateParentCoverage(isTemporary);
     }
@@ -161,7 +160,7 @@ public class TreeNode implements Comparable<TreeNode>{
      * Calculate the number of leaves inside the tree
      * @return Number of existing leaves inside this root node
      */
-    private int numOfLeaves(){
+    public int numOfLeaves(){
         if(children.size() <= 0) return 1;
         int output = 0;
         for(TreeNode child: children){
@@ -175,24 +174,26 @@ public class TreeNode implements Comparable<TreeNode>{
      */
     public void removeTempNodes() {
         coverageTemporary = coverage;
-        // TODO test if keeping "empty" nodes improves infoLoss
-//            children.removeIf(child -> child.isTemporary);
         for(TreeNode child: children){
             child.removeTempNodes();
         }
     }
 
-    public void printTree(int depth) {
-        StringBuilder builder = new StringBuilder();
-        for(int i = 0; i < depth; i++) {
-            builder.append("-");
-        }
-        builder.append("> ").append(content).append(" coverage:").append(coverage).append(" coverageTemp:").append(coverageTemporary).append(" (parent:").append((parent != null) ? parent.content : "X").append(")");
-        System.out.println(builder.toString());
-
-        for(TreeNode node: children){
-            node.printTree(depth+1);
-        }
+    public String getContent(){
+        return content;
     }
+
+//    public void printTree(int depth) {
+//        StringBuilder builder = new StringBuilder();
+//        for(int i = 0; i < depth; i++) {
+//            builder.append("-");
+//        }
+//        builder.append("> ").append(content).append(" coverage:").append(coverage).append(" coverageTemp:").append(coverageTemporary).append(" (parent:").append((parent != null) ? parent.content : "X").append(")");
+//        System.out.println(builder.toString());
+//
+//        for(TreeNode node: children){
+//            node.printTree(depth+1);
+//        }
+//    }
 
 }

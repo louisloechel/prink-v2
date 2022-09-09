@@ -212,9 +212,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             }
 
             // Check that total big gamma size is bigger than k before merging
-            // TODO-Later check which implementation is better
             int totalGammaSize = bigGamma.stream().mapToInt(Cluster::size).sum();
-//            int count = bigGamma.stream().collect(summingInt(cluster -> cluster.size()) );
             // it must also be checked that there exist at least 'l' distinct values of a_s among all clusters in bigGamma
             if(totalGammaSize < k || !checkDiversityBigGamma()){
                 // suppress t based on suppressStrategy

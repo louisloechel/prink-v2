@@ -38,7 +38,7 @@ public class NonNumericalGeneralizer implements BaseGeneralizer{
     public Tuple2<String, Float> generalize(int pos) {
         if(!trees.containsKey(pos)){
             LOG.error("Try to generalize with a non existing tree! Tree-Key: {} Existing Tree-Keys: {}", pos, trees.keySet());
-            return Tuple2.of("ERROR: Missing tree for position:" + pos, 9999.0f);
+            return Tuple2.of("ERROR: Missing tree for position:" + pos, 1.0f);
         }
         return trees.get(pos).getGeneralization(false);
     }
@@ -88,7 +88,4 @@ public class NonNumericalGeneralizer implements BaseGeneralizer{
             }
         }
     }
-
-
-
 }

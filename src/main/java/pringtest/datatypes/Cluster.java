@@ -58,7 +58,10 @@ public class Cluster {
     }
 
     private float informationLossWith(List<Tuple> input) {
-        if(entries.size() <= 0) LOG.error("informationLossWith() called on cluster with size: 0");
+        if(entries.size() <= 0){
+            LOG.error("informationLossWith() called on cluster with size: 0");
+            return 0.0f;
+        }
         double[] infoLossWith = new double[config.length];
 
         for (int i = 0; i < config.length; i++) {
@@ -87,7 +90,15 @@ public class Cluster {
     }
 
     public float infoLoss() {
-        if(entries.size() <= 0) LOG.error("infoLoss() called on cluster with size: 0");
+        // TODO-Maybe add factor to infoLoss to make some attributes more important to maintain
+        if(entries.size() <= 0){
+            LOG.error("infoLoss() called on cluster with size: 0");
+            return 0.0f;
+        }
+        if(config.length <= 0){
+            LOG.error("infoLoss() called without any config/rules");
+            return 0.0f;
+        }
         double[] infoLoss = new double[config.length];
 
         for (int i = 0; i < config.length; i++) {
@@ -121,6 +132,11 @@ public class Cluster {
         int inputArity = input.getArity();
         if(showInfoLoss) inputArity++;
         Tuple output = Tuple.newInstance(inputArity);
+
+        if(entries.size() <= 0){
+            LOG.error("generalize(Tuple) called on cluster with size: 0");
+            return output;
+        }
 
         for (int i = 0; i < Math.min(inputArity, config.length); i++) {
             switch (config[i].getGeneralizationType()) {
@@ -159,6 +175,11 @@ public class Cluster {
         int inputArity = input.getArity();
         if(showInfoLoss) inputArity++;
         Tuple output = Tuple.newInstance(inputArity);
+
+        if(entries.size() <= 0){
+            LOG.error("generalizeMax(Tuple) called on cluster with size: 0");
+            return output;
+        }
 
         for (int i = 0; i < Math.min(inputArity, config.length); i++) {
             switch (config[i].getGeneralizationType()) {
