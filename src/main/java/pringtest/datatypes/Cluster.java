@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 public class Cluster {
 
     private final CastleRule[] config;
+    private final int posTupleId;
 
     private final ArrayList<Tuple> entries = new ArrayList<>();
 
@@ -29,8 +30,9 @@ public class Cluster {
     boolean showInfoLoss = false;
     boolean showEnlargement = false;
 
-    public Cluster(CastleRule[] rules, boolean showInfoLoss) {
+    public Cluster(CastleRule[] rules, int posTupleId, boolean showInfoLoss) {
         this.config = rules;
+        this.posTupleId = posTupleId;
         this.showInfoLoss = showInfoLoss;
         aggreGeneralizer = new AggregationGeneralizer(config);
         reductGeneralizer = new ReductionGeneralizer(this);
@@ -85,12 +87,10 @@ public class Cluster {
                     LOG.error("informationLossWith() -> undefined transformation type: {}", config[i]);
             }
         }
-        double sumWith = Arrays.stream(infoLossWith).sum();
-        return ((float) sumWith) / config.length;
+        return calcCombinedInfoLoss(infoLossWith);
     }
 
     public float infoLoss() {
-        // TODO-Maybe add factor to infoLoss to make some attributes more important to maintain
         if(entries.size() <= 0){
             LOG.error("infoLoss() called on cluster with size: 0");
             return 0.0f;
@@ -122,8 +122,38 @@ public class Cluster {
                     LOG.error("infoLoss() -> undefined transformation type: {}", config[i]);
             }
         }
-        double sumWith = Arrays.stream(infoLoss).sum();
-        return ((float) sumWith) / config.length;
+        return calcCombinedInfoLoss(infoLoss);
+    }
+
+    /**
+     * Calculates the combined information loss for the cluster using the provided info loss values
+     * If all InfoLoss rule multiplier combined are equal to 1 the Normalized Certainty Penalty is used.
+     * If not a normal average calculation is used.
+     * @param infoLoss Information Loss values to use to calculate combined information loss result
+     * @return General information loss for provided values using the clusters config
+     */
+    private float calcCombinedInfoLoss(double[] infoLoss) {
+        // Check what methode should be used for the general information loss (see Doc.)
+        double multiplierSum = Arrays.stream(config).mapToDouble(CastleRule::getInfoLossMultiplier).sum();
+        if(Math.round(multiplierSum) == 1){
+            // Multiply info loss values with provided info loss multiplier and sum together
+            for (int i = 0; i < config.length; i++) {
+                if(config[i].getGeneralizationType() != CastleFunction.Generalization.NONE){
+                    infoLoss[i] = config[i].getInfoLossMultiplier() * infoLoss[i];
+                }
+            }
+            return (float) Arrays.stream(infoLoss).sum();
+        }else{
+            // Count number of generalizers to calculate avg info loss
+            int numAppliedGeneralizers = 0;
+            for (CastleRule castleRule : config) {
+                if (castleRule.getGeneralizationType() != CastleFunction.Generalization.NONE) {
+                    numAppliedGeneralizers++;
+                }
+            }
+            // Calculate the avg off all info loss values
+            return (float) (Arrays.stream(infoLoss).sum() / numAppliedGeneralizers);
+        }
     }
 
     public Tuple generalize(Tuple input) {
@@ -176,15 +206,9 @@ public class Cluster {
         if(showInfoLoss) inputArity++;
         Tuple output = Tuple.newInstance(inputArity);
 
-        if(entries.size() <= 0){
-            LOG.error("generalizeMax(Tuple) called on cluster with size: 0");
-            return output;
-        }
-
         for (int i = 0; i < Math.min(inputArity, config.length); i++) {
             switch (config[i].getGeneralizationType()) {
                 case REDUCTION:
-                    // TODO maybe replace every value with chars to prevent suppressed tuple detection
                     output.setField(reductGeneralizer.generalizeMax(i).f0, i);
                     break;
                 case AGGREGATION:
@@ -245,8 +269,17 @@ public class Cluster {
         return entries.contains(input);
     }
 
+    /**
+     * Returns the number of distinct individuals inside the cluster
+     * @return Number of distinct values for the posTupleId inside entries
+     */
     public int size() {
-        return entries.size();
+        // TODO change to tupleIds and maybe find better performing solution. See: https://stackoverflow.com/questions/17973098/is-there-a-faster-way-to-extract-unique-values-from-object-collection
+        Set<Object> tupleIds = new HashSet<>();
+        for(final Tuple entry: entries) {
+            tupleIds.add(entry.getField(posTupleId));
+        }
+        return tupleIds.size();
     }
 
     /**

@@ -12,25 +12,50 @@ public class CastleRule {
     private Tuple2<Float, Float> domain;
     private ArrayList<String[]> treeEntries;
     private boolean isSensibleAttribute;
+    private double infoLossMultiplier;
 
-    public CastleRule(int position, CastleFunction.Generalization generalizationType, Tuple2<Float,Float> domain, boolean isSensibleAttribute){
+    public CastleRule(int position, CastleFunction.Generalization generalizationType, Tuple2<Float,Float> domain, boolean isSensibleAttribute, double infoLossMultiplier){
         this.position = position;
         this.generalizationType = generalizationType;
         this.domain = domain;
         this.isSensibleAttribute = isSensibleAttribute;
+        this.infoLossMultiplier = infoLossMultiplier;
     }
 
-    public CastleRule(int position, CastleFunction.Generalization generalizationType, ArrayList<String[]> treeEntries, boolean isSensibleAttribute){
+    public CastleRule(int position, CastleFunction.Generalization generalizationType, ArrayList<String[]> treeEntries, boolean isSensibleAttribute, double infoLossMultiplier){
         this.position = position;
         this.generalizationType = generalizationType;
         this.treeEntries = treeEntries;
         this.isSensibleAttribute = isSensibleAttribute;
+        this.infoLossMultiplier = infoLossMultiplier;
     }
 
-    public CastleRule(int position, CastleFunction.Generalization generalizationType, boolean isSensibleAttribute){
+    public CastleRule(int position, CastleFunction.Generalization generalizationType, boolean isSensibleAttribute, double infoLossMultiplier){
         this.position = position;
         this.generalizationType = generalizationType;
         this.isSensibleAttribute = isSensibleAttribute;
+        this.infoLossMultiplier = infoLossMultiplier;
+    }
+
+    public CastleRule(int position, CastleFunction.Generalization generalizationType, Tuple2<Float,Float> domain, boolean isSensibleAttribute){
+        this(position, generalizationType, domain, isSensibleAttribute, 0.0d);
+    }
+
+    public CastleRule(int position, CastleFunction.Generalization generalizationType, ArrayList<String[]> treeEntries, boolean isSensibleAttribute){
+        this(position, generalizationType, treeEntries, isSensibleAttribute, 0.0d);
+    }
+
+    public CastleRule(int position, CastleFunction.Generalization generalizationType, boolean isSensibleAttribute){
+        this(position, generalizationType, isSensibleAttribute, 0.0d);
+    }
+
+    /**
+     * Sets the rule multiplier value that gets multiplied with the resulting information loss of this rule
+     * for the overall cluster information loss value
+     * @param multiplier The new multiplier (needs to be bigger than 0)
+     */
+    public void setInfoLossMultiplier(float multiplier) {
+        if(multiplier > 0) infoLossMultiplier = multiplier;
     }
 
     public int getPosition() {
@@ -53,12 +78,17 @@ public class CastleRule {
         return isSensibleAttribute;
     }
 
+    public double getInfoLossMultiplier() {
+        return infoLossMultiplier;
+    }
+
     @Override
     public String toString() {
         return "CastleRule{" +
-                "position=" + position +
-                ", generalizationType=" + generalizationType +
-                ", isSensibleAttribute=" + isSensibleAttribute +
+                "pos=" + position +
+                ",gType=" + generalizationType +
+                ",SAtt=" + isSensibleAttribute +
+                ",ILM=" + infoLossMultiplier +
                 '}';
     }
 }
