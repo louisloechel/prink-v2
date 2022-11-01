@@ -122,7 +122,13 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
         // Convert rule map into sorted array
         ArrayList<CastleRule> newRuleArray = new ArrayList<>();
-        for(int i = 0; i < rule.getPosition(); i++) {
+        int numOfRules = Math.max(rules.length, rule.getPosition());
+        for(int i = 0; i < numOfRules; i++) {
+            if(i == rule.getPosition()){
+                context.getBroadcastState(ruleStateDescriptor).put(i, rule);
+                newRuleArray.add(rule);
+                continue;
+            }
             if(currentRuleState.contains(i)){
                 newRuleArray.add(i, currentRuleState.get(i));
             }else{
@@ -131,8 +137,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 newRuleArray.add(i, missingRule);
             }
         }
-        context.getBroadcastState(ruleStateDescriptor).put(rule.getPosition(), rule);
-        newRuleArray.add(rule.getPosition(), rule);
 
         rules = newRuleArray.toArray(new CastleRule[]{});
 
@@ -165,7 +169,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         Cluster bestCluster = bestSelection(tuple);
         if(bestCluster == null){
             // Create a new cluster on 'input' and insert it into bigGamma
-            bestCluster = new Cluster(rules, showInfoLoss);
+            bestCluster = new Cluster(rules, posTupleId, showInfoLoss);
             numCreatedClusters.inc();
             bigGamma.add(bestCluster);
         }
@@ -212,6 +216,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             }
 
             // Check that total big gamma size is bigger than k before merging
+            // TODO check if the overall size sum is enough to determine the size or if all individual pid needs to be merged
             int totalGammaSize = bigGamma.stream().mapToInt(Cluster::size).sum();
             // it must also be checked that there exist at least 'l' distinct values of a_s among all clusters in bigGamma
             if(totalGammaSize < k || !checkDiversityBigGamma()){
@@ -260,7 +265,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             return output;
         }else if(suppressStrategy == 2){
             // generalize with the most generalized QI value
-            Cluster tempCluster = new Cluster(rules, showInfoLoss);
+            Cluster tempCluster = new Cluster(rules, posTupleId, showInfoLoss);
             return tempCluster.generalizeMax(input);
         }else{
             LOG.error("suppressTuple -> undefined suppress strategy! Strategy value: {}", suppressStrategy);
@@ -428,7 +433,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             Tuple selectedTuple = selectedBucket.get(0);
 
             // Create new sub-cluster with selectedTuple and remove it from original entry
-            Cluster newCluster = new Cluster(rules, showInfoLoss);
+            Cluster newCluster = new Cluster(rules, posTupleId, showInfoLoss);
             newCluster.addEntry(selectedTuple);
             selectedBucket.remove(0);
 
@@ -502,7 +507,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             Tuple selectedTuple = selectedBucket.get(randomNum);
 
             // Create new sub-cluster with selectedTuple and remove it from original entry
-            Cluster newCluster = new Cluster(rules, showInfoLoss);
+            Cluster newCluster = new Cluster(rules, posTupleId, showInfoLoss);
             newCluster.addEntry(selectedTuple);
             selectedBucket.remove(randomNum);
             // Remove bucket if it has no values in them
@@ -522,6 +527,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 enlargement.sort(Comparator.comparing(o -> (o.f1)));
 
                 // Select first (k*(bucket.size()/sum)) tuples or at least 1 and move them to the new cluster
+                // TODO maybe later if the selection of tuples to add is to large high enlargement values can flow into the cluster. Check if other approach may have less info loss
                 if(bucket.size() > 0) {
                     double amountToAdd = Math.max((k * (bucket.size() / (float) sum)), 1);
                     for (int i = 0; i < amountToAdd; i++) {
