@@ -121,24 +121,23 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         BroadcastState<Integer, CastleRule> currentRuleState = context.getBroadcastState(ruleStateDescriptor);
 
         // Convert rule map into sorted array
-        ArrayList<CastleRule> newRuleArray = new ArrayList<>();
-        int numOfRules = Math.max(rules.length, rule.getPosition());
+        int numOfRules = Math.max((rules != null ? rules.length : 1), (rule.getPosition() + 1));
+        CastleRule[] newRuleArray = new CastleRule[numOfRules];
         for(int i = 0; i < numOfRules; i++) {
             if(i == rule.getPosition()){
                 context.getBroadcastState(ruleStateDescriptor).put(i, rule);
-                newRuleArray.add(rule);
-                continue;
-            }
-            if(currentRuleState.contains(i)){
-                newRuleArray.add(i, currentRuleState.get(i));
+                newRuleArray[i] = rule;
             }else{
-                CastleRule missingRule = new CastleRule(i, Generalization.NONE, false);
-                context.getBroadcastState(ruleStateDescriptor).put(i, missingRule);
-                newRuleArray.add(i, missingRule);
+                if (currentRuleState.contains(i)) {
+                    newRuleArray[i] = currentRuleState.get(i);
+                }else{
+                    CastleRule missingRule = new CastleRule(i, Generalization.NONE, false);
+                    context.getBroadcastState(ruleStateDescriptor).put(i, missingRule);
+                    newRuleArray[i] = missingRule;
+                }
             }
         }
-
-        rules = newRuleArray.toArray(new CastleRule[]{});
+        rules = newRuleArray;
 
         // Redefine sensible attribute positions
         ArrayList<Integer> newPos = new ArrayList<>();
@@ -155,7 +154,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
     @Override
     public void processElement(Object input, ReadOnlyContext context, Collector output) {
-
         TimerService ts = context.timerService();
 
         Tuple tuple = (Tuple) input;
@@ -330,7 +328,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     }
 
     private Cluster mergeClusters(Cluster input) {
-        numMergedCluster.inc();
         while(input.size() < k){
             numMergedCluster.inc();
             float minEnlargement = Float.MAX_VALUE;
@@ -344,7 +341,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                     clusterWithMinEnlargement = cluster;
                 }
             }
-            if(clusterWithMinEnlargement != null) input.addAllEntries(clusterWithMinEnlargement.getAllEntries());
+            input.addAllEntries(clusterWithMinEnlargement.getAllEntries());
             bigGamma.remove(clusterWithMinEnlargement);
         }
         return input;
@@ -748,7 +745,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         }
 
         if(okClusters.isEmpty()){
-            if(bigGamma.size() >= beta){
+            if(bigGamma.size() >= beta && !minClusters.isEmpty()){
                 // Return any cluster in minValue with minValue
                 return minClusters.get(0);
             } else {

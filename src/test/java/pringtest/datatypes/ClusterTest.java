@@ -21,8 +21,8 @@ class ClusterTest {
     @Test
     void enlargementValueCluster() {
         CastleRule[] rules = new CastleRule[]{};
-        Cluster subject = new Cluster(rules, false);
-        Cluster otherCluster = new Cluster(rules, false);
+        Cluster subject = new Cluster(rules, 0,false);
+        Cluster otherCluster = new Cluster(rules, 0,false);
 
         assertEquals(0.0f, subject.enlargementValue(otherCluster));
     }
@@ -55,12 +55,12 @@ class ClusterTest {
 
             CastleRule[] rules = rulesTemp.toArray(new CastleRule[rulesTemp.size()]);
 
-            subject = new Cluster(rules, false);
+            subject = new Cluster(rules, 0, false);
         }
         @Test
         void enlargementValueCluster() {
             CastleRule[] rules = new CastleRule[]{};
-            Cluster otherCluster = new Cluster(rules, false);
+            Cluster otherCluster = new Cluster(rules, 0, false);
             assertEquals(0.0f, subject.enlargementValue(otherCluster));
         }
 
@@ -73,7 +73,7 @@ class ClusterTest {
         @Test
         void informationLossWithCluster() {
             CastleRule[] rules = new CastleRule[]{};
-            Cluster otherCluster = new Cluster(rules, false);
+            Cluster otherCluster = new Cluster(rules, 0, false);
             assertEquals(0.0f, subject.informationLossWith(otherCluster));
         }
 
@@ -132,7 +132,7 @@ class ClusterTest {
     @Test
     void infoLossWithOneEntry() {
         CastleRule[] rules = new CastleRule[]{};
-        Cluster subject = new Cluster(rules, false);
+        Cluster subject = new Cluster(rules, 0, false);
         subject.addEntry(new Tuple4<>(1, 10f, "Test", "Test"));
         assertEquals(0.0f, subject.infoLoss());
     }

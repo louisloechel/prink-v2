@@ -135,25 +135,30 @@ public class Cluster {
     private float calcCombinedInfoLoss(double[] infoLoss) {
         // Check what methode should be used for the general information loss (see Doc.)
         double multiplierSum = Arrays.stream(config).mapToDouble(CastleRule::getInfoLossMultiplier).sum();
+        int numAppliedGeneralizers = 0;
+        float output;
         if(Math.round(multiplierSum) == 1){
             // Multiply info loss values with provided info loss multiplier and sum together
             for (int i = 0; i < config.length; i++) {
                 if(config[i].getGeneralizationType() != CastleFunction.Generalization.NONE){
                     infoLoss[i] = config[i].getInfoLossMultiplier() * infoLoss[i];
+                    numAppliedGeneralizers++;
                 }
             }
-            return (float) Arrays.stream(infoLoss).sum();
+            output = (float) Arrays.stream(infoLoss).sum();
         }else{
             // Count number of generalizers to calculate avg info loss
-            int numAppliedGeneralizers = 0;
             for (CastleRule castleRule : config) {
                 if (castleRule.getGeneralizationType() != CastleFunction.Generalization.NONE) {
                     numAppliedGeneralizers++;
                 }
             }
             // Calculate the avg off all info loss values
-            return (float) (Arrays.stream(infoLoss).sum() / numAppliedGeneralizers);
+            output = (float) (Arrays.stream(infoLoss).sum() / numAppliedGeneralizers);
         }
+        // Return 0.0 if no generalization rules are present else output
+        if(numAppliedGeneralizers == 0) return 0.0f;
+        return output;
     }
 
     public Tuple generalize(Tuple input) {
@@ -290,6 +295,7 @@ public class Cluster {
         if(posSensibleAttributes.length <= 0) return 0;
         if(posSensibleAttributes.length == 1){
             // TODO test if correct (if object can be compared with object)
+            // TODO check if all values need to be sorted first by pid
             // Return the amount of different values inside the sensible attribute
             Set<Object> output = new HashSet<>();
             for(Tuple tuple: entries){
@@ -301,6 +307,7 @@ public class Cluster {
             return output.size();
         }else{
             // See for concept: https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1
+            // TODO maybe replace with new ArrayList<Tuple>(entires) or use @SuppressWarnings("unchecked");
             ArrayList<Tuple> entriesCopy = (ArrayList<Tuple>) entries.clone();
             List<Tuple2<Integer, Map.Entry<Object, Long>>> numOfAppearances = new ArrayList<>();
             int counter = 0;
