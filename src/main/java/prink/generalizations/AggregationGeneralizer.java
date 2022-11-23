@@ -1,9 +1,9 @@
-package pringtest.generalizations;
+package prink.generalizations;
 
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
-import pringtest.CastleFunction;
-import pringtest.datatypes.CastleRule;
+import prink.CastleFunction;
+import prink.datatypes.CastleRule;
 
 import java.util.HashMap;
 import java.util.List;

@@ -16,11 +16,11 @@
  * limitations under the License.
  */
 
-package pringtest.datatypes;
+package examples.datatypes;
 
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import pringtest.utils.DataGenerator;
+import examples.utils.DataGenerator;
 
 import java.io.Serializable;
 import java.time.Instant;

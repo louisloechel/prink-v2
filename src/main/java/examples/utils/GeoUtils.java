@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package pringtest.utils;
+package examples.utils;
 
 import java.util.ArrayList;
 import java.util.List;

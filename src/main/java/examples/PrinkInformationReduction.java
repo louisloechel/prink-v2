@@ -1,4 +1,4 @@
-package pringtest;
+package examples;
 
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -15,16 +15,17 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import pringtest.datatypes.CastleRule;
-import pringtest.datatypes.TaxiFare;
-import pringtest.sources.TaxiFareGenerator;
+import prink.CastleFunction;
+import prink.datatypes.CastleRule;
+import examples.datatypes.TaxiFare;
+import examples.sources.TaxiFareGenerator;
 
 import java.time.Instant;
 import java.util.ArrayList;
 
 /**
  * Class to test out flink functionality
- * This example uses the provided example classes from Apache Flink
+ * This example uses the provided example classes from the Apache Flink examples
  */
 public class PrinkInformationReduction {
 

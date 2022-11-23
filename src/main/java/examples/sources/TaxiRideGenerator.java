@@ -16,10 +16,10 @@
  * limitations under the License.
  */
 
-package pringtest.sources;
+package examples.sources;
 
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import pringtest.datatypes.TaxiRide;
+import examples.datatypes.TaxiRide;
 
 import java.util.ArrayList;
 import java.util.List;

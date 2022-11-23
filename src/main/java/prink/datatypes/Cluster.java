@@ -1,12 +1,12 @@
-package pringtest.datatypes;
+package prink.datatypes;
 
 import org.apache.flink.api.java.tuple.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pringtest.CastleFunction;
-import pringtest.generalizations.AggregationGeneralizer;
-import pringtest.generalizations.NonNumericalGeneralizer;
-import pringtest.generalizations.ReductionGeneralizer;
+import prink.CastleFunction;
+import prink.generalizations.AggregationGeneralizer;
+import prink.generalizations.NonNumericalGeneralizer;
+import prink.generalizations.ReductionGeneralizer;
 
 import java.util.*;
 import java.util.stream.Collectors;

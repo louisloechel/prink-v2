@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package pringtest.utils;
+package examples.utils;
 
 import java.time.Instant;
 import java.util.Random;

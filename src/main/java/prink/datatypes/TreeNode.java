@@ -1,4 +1,4 @@
-package pringtest.datatypes;
+package prink.datatypes;
 
 import org.apache.flink.api.java.tuple.Tuple2;
 

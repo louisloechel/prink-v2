@@ -1,4 +1,4 @@
-package pringtest.generalizations;
+package prink.generalizations;
 
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;

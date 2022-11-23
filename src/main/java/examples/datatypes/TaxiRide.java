@@ -16,12 +16,12 @@
  * limitations under the License.
  */
 
-package pringtest.datatypes;
+package examples.datatypes;
 
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import pringtest.utils.DataGenerator;
-import pringtest.utils.GeoUtils;
+import examples.utils.DataGenerator;
+import examples.utils.GeoUtils;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;

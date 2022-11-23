@@ -1,7 +1,7 @@
-package pringtest.datatypes;
+package prink.datatypes;
 
 import org.apache.flink.api.java.tuple.Tuple2;
-import pringtest.CastleFunction;
+import prink.CastleFunction;
 
 import java.util.ArrayList;
 

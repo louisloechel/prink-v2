@@ -1,4 +1,4 @@
-package pringtest.datatypes;
+package prink.datatypes;
 
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -6,7 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import pringtest.CastleFunction;
+import prink.CastleFunction;
 
 import java.util.ArrayList;
 
@@ -25,18 +25,6 @@ class ClusterTest {
         Cluster otherCluster = new Cluster(rules, 0,false);
 
         assertEquals(0.0f, subject.enlargementValue(otherCluster));
-    }
-
-    @Test
-    void EnlargementValueTuple() {
-    }
-
-    @Test
-    void informationLossWith() {
-    }
-
-    @Test
-    void testInformationLossWith() {
     }
 
     @Nested
@@ -137,43 +125,4 @@ class ClusterTest {
         assertEquals(0.0f, subject.infoLoss());
     }
 
-    @Test
-    void generalize() {
-    }
-
-    @Test
-    void generalizeMax() {
-    }
-
-    @Test
-    void addEntry() {
-    }
-
-    @Test
-    void addAllEntries() {
-    }
-
-    @Test
-    void removeEntry() {
-    }
-
-    @Test
-    void removeAllEntries() {
-    }
-
-    @Test
-    void getAllEntries() {
-    }
-
-    @Test
-    void contains() {
-    }
-
-    @Test
-    void size() {
-    }
-
-    @Test
-    void diversity() {
-    }
 }

@@ -1,4 +1,4 @@
-package pringtest;
+package prink;
 
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -19,7 +19,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import pringtest.datatypes.CastleRule;
+import prink.datatypes.CastleRule;
 
 import java.util.ArrayList;
 

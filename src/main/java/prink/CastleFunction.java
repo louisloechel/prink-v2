@@ -1,4 +1,4 @@
-package pringtest;
+package prink;
 
 import org.apache.flink.api.common.state.BroadcastState;
 import org.apache.flink.api.common.state.ListState;
@@ -21,8 +21,8 @@ import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction
 import org.apache.flink.util.Collector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pringtest.datatypes.CastleRule;
-import pringtest.datatypes.Cluster;
+import prink.datatypes.CastleRule;
+import prink.datatypes.Cluster;
 
 import java.util.*;
 import java.util.stream.Collectors;

@@ -1,12 +1,12 @@
-package pringtest.generalizations;
+package prink.generalizations;
 
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pringtest.CastleFunction;
-import pringtest.datatypes.CastleRule;
-import pringtest.datatypes.TreeNode;
+import prink.CastleFunction;
+import prink.datatypes.CastleRule;
+import prink.datatypes.TreeNode;
 
 import java.util.HashMap;
 import java.util.List;

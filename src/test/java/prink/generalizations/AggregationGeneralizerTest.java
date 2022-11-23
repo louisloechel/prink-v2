@@ -1,4 +1,4 @@
-package pringtest.generalizations;
+package prink.generalizations;
 
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -6,8 +6,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import pringtest.CastleFunction;
-import pringtest.datatypes.CastleRule;
+import prink.CastleFunction;
+import prink.datatypes.CastleRule;
 
 import java.util.ArrayList;
 import java.util.Arrays;

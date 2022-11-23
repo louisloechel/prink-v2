@@ -1,4 +1,4 @@
-package pringtest;
+package prink;
 
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;

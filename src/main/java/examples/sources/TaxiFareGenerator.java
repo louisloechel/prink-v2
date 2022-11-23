@@ -16,11 +16,11 @@
  * limitations under the License.
  */
 
-package pringtest.sources;
+package examples.sources;
 
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import pringtest.datatypes.TaxiFare;
-import pringtest.utils.DataGenerator;
+import examples.datatypes.TaxiFare;
+import examples.utils.DataGenerator;
 
 import java.time.Duration;
 import java.time.Instant;

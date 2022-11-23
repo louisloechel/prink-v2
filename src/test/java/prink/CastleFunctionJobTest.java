@@ -1,4 +1,4 @@
-package pringtest;
+package prink;
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -23,7 +23,7 @@ import org.junit.ClassRule;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import pringtest.datatypes.CastleRule;
+import prink.datatypes.CastleRule;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,149 +47,6 @@ class CastleFunctionJobTest {
                             .setNumberSlotsPerTaskManager(2)
                             .setNumberTaskManagers(1)
                             .build());
-
-//    private static Stream<Arguments> provideTestParameters() {
-////      Relevant Prink parameters:
-////      - k
-////      - l
-////      - delta (Number of 'delayed' tuples)
-////      - beta (Max Number of clusters in bigGamma)
-////      - zeta (Max Number of clusters in bigOmega)
-////      - mu (Number of last infoLoss values considered for tau)
-////      Through rules
-////      - Number of quasi-identifiers (QIs)
-////      - Type of quasi-identifiers (QIs)
-////      - Number of sensible attributes
-////      Through flink
-////      - input speed
-////      - parallelism
-//
-//        int[] kValues = {10}; // {2,3,4,5,6,7,8,9,10,20,50,100}; // {5};
-//        int[] lValues = {0}; // {0,1,2,3,4,5,6,7,8,9,10}; // {2};
-//        int[] deltaValues = {100}; // {2,5,10,20,50}; // {20} if k < delta
-//        int[] betaValues = {50}; //{1,2,5,10,20,30,40,50,60,70,80,90,100,150,200,300,500,1000};//{50};
-//        int[] zetaValues = {1000}; //{10};
-//        int[] muValues = {10}; //{1,2,3,4,5,6,7,8,9,10,20,30,40,50,75,100,200}; //{10};
-//
-//        ArrayList<Arguments> arguments = new ArrayList<>();
-//
-//        for(int k: kValues){
-//            for(int l: lValues) {
-//                for (int delta : deltaValues) {
-//                    for (int beta : betaValues) {
-//                        for (int zeta : zetaValues) {
-//                            for (int mu : muValues) {
-//                                arguments.add(Arguments.of(k, l, delta, beta, zeta, mu));
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//
-//        return arguments.stream();
-//    }
-//
-//    @ParameterizedTest
-//    @MethodSource("provideTestParameters")
-//    public void castlePerformance(int k, int l, int delta, int beta, int zeta, int mu) throws Exception {
-//        // create TaxiFares to test stream
-//        for (int i = 0; i < numStreamingTuples; i++) {
-//            TaxiFare input = new TaxiFare(i);
-//            inputData.add(new Tuple8<>(input.rideId, input.taxiId, input.driverId, input.startTime,
-//                    input.paymentType, input.tip, input.tolls, input.totalFare));
-//        }
-//
-//        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-//
-//        // configure your test environment
-//        env.setParallelism(1);
-//
-//        // values are collected in a static variable
-//        PerformanceSink.values.clear();
-//        PerformanceSink.durations.clear();
-//        PerformanceSink.infoLoss.clear();
-//        PerformanceSink.output.clear();
-//
-//        // Prink setup
-//        MapStateDescriptor<Integer, CastleRule> ruleStateDescriptor =
-//                new MapStateDescriptor<>(
-//                        "RulesBroadcastState",
-//                        BasicTypeInfo.INT_TYPE_INFO,
-//                        TypeInformation.of(new TypeHint<CastleRule>(){}));
-//
-//        // Create treeEntries for non-numerical generalizer
-//        ArrayList<String[]> treeEntries = new ArrayList<>();
-//        treeEntries.add(new String[]{"CARD","APPLE PAY"});
-//        treeEntries.add(new String[]{"CASH","Banknotes"});
-//        treeEntries.add(new String[]{"CASH","Coins"});
-//        treeEntries.add(new String[]{"CARD","CREDIT CARD"});
-//        treeEntries.add(new String[]{"CARD","MAESTRO CARD"});
-//        treeEntries.add(new String[]{"CARD","PAYPAL","Ratenzahlung"});
-//        treeEntries.add(new String[]{"CARD","PAYPAL","Auf Rechnung"});
-//        treeEntries.add(new String[]{"CARD","PAYPAL","Direktzahlung"});
-//        treeEntries.add(new String[]{"9-Euro Ticket","No payment"});
-//
-//        // Broadcast the rules and create the broadcast state
-//        ArrayList<CastleRule> rules = new ArrayList<>();
-//        rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
-////        rules.add(new CastleRule(1, CastleFunction.Generalization.NONE, false));
-//        rules.add(new CastleRule(1, CastleFunction.Generalization.REDUCTION, false));
-//        rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
-//        rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, false));
-//        rules.add(new CastleRule(4, CastleFunction.Generalization.NONNUMERICAL, treeEntries, true));
-//        rules.add(new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f), false));
-//        rules.add(new CastleRule(6, CastleFunction.Generalization.NONE, Tuple2.of(0f,200f), true));
-//        rules.add(new CastleRule(7, CastleFunction.Generalization.NONE, Tuple2.of(10f,500f), true));
-//
-//        DataStream<CastleRule> ruleStream = env.fromCollection(rules);
-//        BroadcastStream<CastleRule> ruleBroadcastStream = ruleStream
-//                .broadcast(ruleStateDescriptor);
-//
-//        // create a stream of custom elements and apply transformations
-//        DataStream<Tuple> stream = env
-//                .fromCollection(inputData)
-//                .keyBy(value -> value.getField(1))
-//                .connect(ruleBroadcastStream)
-//                .process(new CastleFunction(1, k, l, delta, beta, zeta, mu, true, 1))
-//                .returns(TypeInformation.of(new TypeHint<Tuple9<Object, Object, Object, Object,Object, Object, Object, Object, Object>>(){}));
-//
-//        stream.addSink(new PerformanceSink("Prink;k=" + k + ";l=" + l + ";delta=" + delta + ";beta=" + beta + ";zeta=" + zeta + ";mu=" + mu));
-//
-//        // execute
-//        env.execute();
-//
-//        // verify your results
-//        System.out.println(PerformanceSink.durations.toString());
-//        System.out.println("Expected amount:" + inputData.size() + " collected:" + PerformanceSink.values.size());
-//        StringBuilder sb = new StringBuilder();
-//        if(PerformanceSink.values.size() >= 10000){
-//            OptionalDouble averageInfoLoss = PerformanceSink.infoLoss
-//                    .stream()
-//                    .mapToDouble(a -> a)
-//                    .average();
-//
-//            OptionalDouble averageDuration = PerformanceSink.durations
-//                    .stream()
-//                    .mapToDouble(a -> a)
-//                    .average();
-//
-//            sb.append("Prink;").append(PerformanceSink.values.size()).append(";").append(k).append(";").append(l).append(";").append(delta).append(";").append(beta).append(";").append(zeta).append(";").append(mu).append(";");
-//            sb.append(averageInfoLoss.getAsDouble()).append(";").append(averageDuration.getAsDouble()).append(System.lineSeparator());
-//
-//        }else{
-//            sb.append("Prink;").append(PerformanceSink.values.size()).append(";").append(k).append(";").append(l).append(";").append(delta).append(";").append(beta).append(";").append(zeta).append(";").append(mu).append(";");
-//            sb.append("WIP").append(";").append("WIP").append(System.lineSeparator());
-//        }
-//        try {
-//            Files.write(Paths.get("C:\\Users\\Groneberg\\Desktop\\Studium\\AAA_Master\\5_Masterarbeit\\Evaluation\\01.08.22\\test_eval.txt"), sb.toString().getBytes(), StandardOpenOption.APPEND);
-//        }catch (IOException e) {
-//            //exception handling left as an exercise for the reader
-//        }
-//
-//        assertTrue(PerformanceSink.values.size() >= (inputData.size()-100));
-////        assertEquals(PerformanceSink.values.size(),inputData.size());
-//    }
 
     private static Stream<Arguments> provideAgeEvalParameters() {
         int[] kValues = {5};//{5, 10, 25, 50, 100}; // {2,3,4,5,6,7,8,9,10,20,50,100}; // {5};
@@ -338,108 +195,6 @@ class CastleFunctionJobTest {
 
         treeNation.add(new String[]{"Outlying-US(Guam-USVI-etc)"});
 
-
-//        ArrayList<CastleRule> rules = new ArrayList<>();
-//        rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
-//        rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false)); // age
-//        rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
-//        rules.add(new CastleRule(3, CastleFunction.Generalization.NONNUMERICAL, treeWorkclass, false)); // workclass
-//        rules.add(new CastleRule(4, CastleFunction.Generalization.NONE, false)); // final weight
-//        rules.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false));
-//        rules.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false));
-//        rules.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false));
-//        rules.add(new CastleRule(8, CastleFunction.Generalization.NONNUMERICAL, treeRelationship, false));
-//        rules.add(new CastleRule(9, CastleFunction.Generalization.NONNUMERICAL, treeRace, false));
-//        rules.add(new CastleRule(10, CastleFunction.Generalization.NONNUMERICAL, treeSex, false));
-//        rules.add(new CastleRule(11, CastleFunction.Generalization.NONE, true));
-//        rules.add(new CastleRule(12, CastleFunction.Generalization.NONE, true));
-//        rules.add(new CastleRule(13, CastleFunction.Generalization.NONE, true));
-//        rules.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation,false));
-
-//        rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
-//        rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false, 1.0)); // age
-//        rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
-//        rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
-//        rules.add(new CastleRule(4, CastleFunction.Generalization.AGGREGATION, Tuple2.of(13492f, 1490400f), false)); // final weight
-//        rules.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false));
-//        rules.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false, 1.0));
-//        rules.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false, 1.0));
-//        rules.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true, 1.0)); // relationship
-//        rules.add(new CastleRule(9, CastleFunction.Generalization.NONE, treeRace, false, 1.0)); // race
-//        rules.add(new CastleRule(10, CastleFunction.Generalization.NONE, treeSex, false, 1.0)); // sex
-//        rules.add(new CastleRule(11, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 99999f), false)); // capital-gain
-//        rules.add(new CastleRule(12, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 4356f), false)); // capital-loss
-//        rules.add(new CastleRule(13, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1f, 99f), false)); // hours per week
-//        rules.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false)); // nation
-
-//        ArrayList<CastleRule> rulesDGH1 = new ArrayList<>();
-////        rulesDGH1.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false)); // age
-//        rulesDGH1.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
-//        rulesDGH1.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
-//        rulesDGH1.add(new CastleRule(10, CastleFunction.Generalization.NONNUMERICAL, treeSex, false)); // sex
-//        rulesDGH1.add(new CastleRule(14, CastleFunction.Generalization.NONE, treeNation, false)); // nation
-//
-//        ArrayList<CastleRule> rulesDGH2 = new ArrayList<>();
-////        rulesDGH2.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false)); // age
-//        rulesDGH2.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
-//        rulesDGH2.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false));
-//        rulesDGH2.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
-//        rulesDGH2.add(new CastleRule(14, CastleFunction.Generalization.NONE, treeNation, false)); // nation
-//
-//        ArrayList<CastleRule> rulesDGH3 = new ArrayList<>();
-////        rulesDGH3.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false)); // age
-//        rulesDGH3.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
-//        rulesDGH3.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false));
-//        rulesDGH3.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
-//        rulesDGH3.add(new CastleRule(14, CastleFunction.Generalization.NONE, treeNation, false)); // nation
-//
-//        ArrayList<CastleRule> rulesDGH4 = new ArrayList<>();
-////        rulesDGH4.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false)); // age
-//        rulesDGH4.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
-//        rulesDGH4.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false));
-//        rulesDGH4.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
-//        rulesDGH4.add(new CastleRule(14, CastleFunction.Generalization.NONE, treeNation, false)); // nation
-//
-//        ArrayList<CastleRule> rulesDGH5 = new ArrayList<>();
-////        rulesDGH5.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false)); // age
-//        rulesDGH5.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
-//        rulesDGH5.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
-//        rulesDGH5.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false)); // nation
-
-//        ArrayList<CastleRule> rulesAggre1 = new ArrayList<>();
-//        rulesAggre1.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
-//        rulesAggre1.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false)); // age
-//        rulesAggre1.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
-//        rulesAggre1.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
-//        rulesAggre1.add(new CastleRule(4, CastleFunction.Generalization.AGGREGATION, Tuple2.of(13492f, 1490400f), false)); // final weight
-////        rulesAggre1.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false));
-////        rulesAggre1.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false));
-////        rulesAggre1.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false));
-//        rulesAggre1.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
-//        rulesAggre1.add(new CastleRule(9, CastleFunction.Generalization.NONE, treeRace, false)); // race
-//        rulesAggre1.add(new CastleRule(10, CastleFunction.Generalization.NONE, treeSex, false)); // sex
-//        rulesAggre1.add(new CastleRule(11, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 99999f), false)); // capital-gain
-//        rulesAggre1.add(new CastleRule(12, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 4356f), false)); // capital-loss
-//        rulesAggre1.add(new CastleRule(13, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1f, 99f), false)); // hours per week
-////        rulesAggre1.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false)); // nation
-//
-//        ArrayList<CastleRule> rulesNonNum1 = new ArrayList<>();
-//        rulesNonNum1.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
-////        rulesNonNum1.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false)); // age
-//        rulesNonNum1.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
-//        rulesNonNum1.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
-////        rulesNonNum1.add(new CastleRule(4, CastleFunction.Generalization.AGGREGATION, Tuple2.of(13492f, 1490400f), false)); // final weight
-//        rulesNonNum1.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false));
-//        rulesNonNum1.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false));
-//        rulesNonNum1.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false));
-//        rulesNonNum1.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
-//        rulesNonNum1.add(new CastleRule(9, CastleFunction.Generalization.NONE, treeRace, false)); // race
-//        rulesNonNum1.add(new CastleRule(10, CastleFunction.Generalization.NONE, treeSex, false)); // sex
-////        rulesNonNum1.add(new CastleRule(11, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 99999f), false)); // capital-gain
-////        rulesNonNum1.add(new CastleRule(12, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 4356f), false)); // capital-loss
-////        rulesNonNum1.add(new CastleRule(13, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1f, 99f), false)); // hours per week
-//        rulesNonNum1.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false)); // nation
-
         ArrayList<CastleRule> rulesCombi1 = new ArrayList<>();
         rulesCombi1.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
         rulesCombi1.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false)); // age
@@ -460,15 +215,6 @@ class CastleFunctionJobTest {
 
         HashMap<String,ArrayList<CastleRule>> ruleSets = new HashMap<>();
 
-//        ruleSets.add(rulesSetEmpty);
-//        ruleSets.add(rulesSet0);
-//        ruleSets.add(rulesSet1);
-//        ruleSets.put("RuleSet2",rulesSet2);
-//        ruleSets.add(rulesSet3);
-//        ruleSets.add(rulesSet4);
-//        ruleSets.add(rulesSet5);
-//        ruleSets.add(rulesSet6);
-//        ruleSets.add(rulesSet7);
 //        ruleSets.put("RuleSet8",rulesSet8);
 //        ruleSets.put("CASTLE-Set", rules);
 //        ruleSets.put("Sex", rulesDGH1);
@@ -562,34 +308,35 @@ class CastleFunctionJobTest {
         String timestamp = new SimpleDateFormat("dd-MM-HH-mm-ss").format(new Date());
         String folderName = new SimpleDateFormat("dd.MM.yy").format(new Date());
 
-        String folderPath = "C:\\Users\\Groneberg\\Desktop\\Studium\\AAA_Master\\5_Masterarbeit\\Evaluation\\";
-        Files.createDirectories(Paths.get(folderPath + "\\" + folderName));
-        Files.createDirectories(Paths.get(folderPath + "\\" + folderName + "\\details"));
-        new File(folderPath + "\\" + folderName + "\\test_eval.txt").createNewFile();
-
-        sb.append(timestamp)
-                .append(";AvgIL=").append(averageInfoLoss.getAsDouble())
-                .append("\t;AvgDur=").append(averageDuration.getAsDouble())
-                .append("\t;parameters{k=").append(k).append("\t;l=").append(l).append("\t;delta=").append(delta).append("\t;beta=").append(beta).append("\t;zeta=").append(zeta).append("\t;mu=").append(mu)
-                .append("\t;valueSize:").append(PerformanceSink.values.size())
-                .append("\t;rules=").append(rules).append(System.lineSeparator());
-
-        try {
-            Files.write(Paths.get(folderPath + folderName + "\\test_eval.txt"), sb.toString().getBytes(), StandardOpenOption.APPEND);
-
-//            sb.append("InfoLoss=").append(PerformanceSink.infoLoss.toString()).append(System.lineSeparator());
-//            sb.append("Durations=").append(PerformanceSink.durations.toString()).append(System.lineSeparator());
-//            Files.write(Paths.get(folderPath + folderName + "\\details\\" + timestamp +".txt"), sb.toString().getBytes(), StandardOpenOption.CREATE);
-
-            StringBuilder sbOutput = new StringBuilder();
-            for(String s: PerformanceSink.output){
-                sbOutput.append(s);
-            }
-            Files.write(Paths.get(folderPath + folderName + "\\details\\" + timestamp +".txt"), sbOutput.toString().getBytes(), StandardOpenOption.CREATE);
-        }catch (IOException e) {
-            System.out.println("ERROR: while writing file e:" + e);
-            //exception handling left as an exercise for the reader
-        }
+//        // To test with file result assign fitting path
+//        String folderPath = "C:\\Users\\Groneberg\\Desktop\\Studium\\AAA_Master\\5_Masterarbeit\\Evaluation\\";
+//        Files.createDirectories(Paths.get(folderPath + "\\" + folderName));
+//        Files.createDirectories(Paths.get(folderPath + "\\" + folderName + "\\details"));
+//        new File(folderPath + "\\" + folderName + "\\test_eval.txt").createNewFile();
+//
+//        sb.append(timestamp)
+//                .append(";AvgIL=").append(averageInfoLoss.getAsDouble())
+//                .append("\t;AvgDur=").append(averageDuration.getAsDouble())
+//                .append("\t;parameters{k=").append(k).append("\t;l=").append(l).append("\t;delta=").append(delta).append("\t;beta=").append(beta).append("\t;zeta=").append(zeta).append("\t;mu=").append(mu)
+//                .append("\t;valueSize:").append(PerformanceSink.values.size())
+//                .append("\t;rules=").append(rules).append(System.lineSeparator());
+//
+//        try {
+//            Files.write(Paths.get(folderPath + folderName + "\\test_eval.txt"), sb.toString().getBytes(), StandardOpenOption.APPEND);
+//
+////            sb.append("InfoLoss=").append(PerformanceSink.infoLoss.toString()).append(System.lineSeparator());
+////            sb.append("Durations=").append(PerformanceSink.durations.toString()).append(System.lineSeparator());
+////            Files.write(Paths.get(folderPath + folderName + "\\details\\" + timestamp +".txt"), sb.toString().getBytes(), StandardOpenOption.CREATE);
+//
+//            StringBuilder sbOutput = new StringBuilder();
+//            for(String s: PerformanceSink.output){
+//                sbOutput.append(s);
+//            }
+//            Files.write(Paths.get(folderPath + folderName + "\\details\\" + timestamp +".txt"), sbOutput.toString().getBytes(), StandardOpenOption.CREATE);
+//        }catch (IOException e) {
+//            System.out.println("ERROR: while writing file e:" + e);
+//            //exception handling left as an exercise for the reader
+//        }
         assertTrue(PerformanceSink.values.size() >= (inputData.size()-100));
     }
 
@@ -621,10 +368,10 @@ class CastleFunctionJobTest {
                     ";" + (context.currentProcessingTime() - startTime) +
                     ";" + (input.getField(input.getArity()-1)) + "\n");
 
-//            System.out.println(input.getField(0) + ";" +  input +
-//                            ";" + description +
-//                            ";" + (context.currentProcessingTime() - startTime) +
-//                            ";" + (input.getField(input.getArity()-1)));
+            System.out.println(input.getField(0) + ";" +  input +
+                            ";" + description +
+                            ";" + (context.currentProcessingTime() - startTime) +
+                            ";" + (input.getField(input.getArity()-1)));
 
         }
     }
