@@ -36,6 +36,13 @@ public class AggregationGeneralizer implements BaseGeneralizer{
         return Tuple2.of(borders, infoLoss(pos, aggregationRanges.get(pos).f0, aggregationRanges.get(pos).f1));
     }
 
+    /**
+     * Returns the previous recorded Aggregation bounds for a given position, while considering the additional provided tuples.
+     * (see Cluster.addEntry() and Cluster.addAllEntries()) and the produced information loss
+     * @param pos Position inside the entry tuple
+     * @param withTuples Tuples to consider when calculating the generalization
+     * @return A Tuple2 with [Aggregation bounds as Tuple2<Float, Float>, InfoLoss]
+     */
     @Override
     public Tuple2<Tuple2<Float, Float>, Float> generalize(List<Tuple> withTuples, int pos) {
         float min = aggregationRanges.get(pos).f0;

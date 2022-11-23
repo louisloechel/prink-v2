@@ -24,6 +24,7 @@ import java.util.ArrayList;
 
 /**
  * Class to test out flink functionality
+ * This example uses the provided example classes from Apache Flink
  */
 public class PrinkInformationReduction {
 
@@ -55,10 +56,10 @@ public class PrinkInformationReduction {
      */
     public JobExecutionResult execute() throws Exception {
 
-        // set up streaming execution environment
+        // Set up streaming execution environment
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        // start the data generator and arrange for watermarking
+        // Start the data generator and arrange for watermarking
         DataStream<Tuple8<Long, Long, Long, Instant, Object, Float, Float, Float>> fares = env
                 .addSource(source)
                 .assignTimestampsAndWatermarks(
@@ -87,18 +88,17 @@ public class PrinkInformationReduction {
         treeEntries.add(new String[]{"CARD","PAYPAL","Direktzahlung"});
         treeEntries.add(new String[]{"9-Euro Ticket","No payment"});
 
-        // broadcast the rules and create the broadcast state
+        // Broadcast the rules and create the broadcast state
         ArrayList<CastleRule> rules = new ArrayList<>();
         rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
-        rules.add(new CastleRule(1, CastleFunction.Generalization.REDUCTION, false));
+        rules.add(new CastleRule(1, CastleFunction.Generalization.REDUCTION, false,0.8));
         rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
         rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, false));
-        rules.add(new CastleRule(4, CastleFunction.Generalization.NONNUMERICAL, treeEntries, true));
-        rules.add(new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f), false));
+        rules.add(new CastleRule(4, CastleFunction.Generalization.NONNUMERICAL, treeEntries, true, 0.1));
+        rules.add(new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f), false, 0.1));
         rules.add(new CastleRule(6, CastleFunction.Generalization.NONE, Tuple2.of(0f,200f), true));
         rules.add(new CastleRule(7, CastleFunction.Generalization.NONE, Tuple2.of(10f,500f), true));
 
-        // TODO add timed check. See https://nightlies.apache.org/flink/flink-docs-master/docs/dev/datastream/overview/#data-sources
         BroadcastStream<CastleRule> ruleBroadcastStream = env.fromCollection(rules)
                 .broadcast(ruleStateDescriptor);
 
@@ -138,8 +138,6 @@ public class PrinkInformationReduction {
                 input +
                 ";[Data Desc.]" +
                 ";" + (context.currentProcessingTime() - startTime));
-
-
         }
     }
 }

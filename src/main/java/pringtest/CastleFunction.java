@@ -157,7 +157,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         TimerService ts = context.timerService();
 
         Tuple tuple = (Tuple) input;
-        tuple.setField(ts.currentProcessingTime(), 2); // TODO remove after testing
+//        tuple.setField(ts.currentProcessingTime(), 2); // enable for testing testing
 
         eventTimeLag.update(ts.currentProcessingTime() - ts.currentWatermark());
 
@@ -214,7 +214,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             }
 
             // Check that total big gamma size is bigger than k before merging
-            // TODO check if the overall size sum is enough to determine the size or if all individual pid needs to be merged
             int totalGammaSize = bigGamma.stream().mapToInt(Cluster::size).sum();
             // it must also be checked that there exist at least 'l' distinct values of a_s among all clusters in bigGamma
             if(totalGammaSize < k || !checkDiversityBigGamma()){
@@ -287,7 +286,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
 
         if(posSensibleAttributes.length == 1){
             // Calculate the amount of different values inside the sensible attribute and return true if bigger than l
-            // TODO test if correct (if object can be compared with object)
             Set<Object> output = new HashSet<>();
             for(Tuple tuple: allBigGammaEntries){
                 int pos = posSensibleAttributes[0];
@@ -305,7 +303,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 counter++;
                 if(counter >= l) return true;
                 for (int pos : posSensibleAttributes) {
-                    // TODO check if two strings are added to the same grouping if they have the same value but are different objects
                     Map.Entry<Object, Long> temp = allBigGammaEntries.stream().collect(Collectors.groupingBy(s -> (s.getField(pos).getClass().isArray() ? ((Object[]) s.getField(pos))[((Object[]) s.getField(pos)).length-1] : s.getField(pos)), Collectors.counting()))
                             .entrySet().stream().max((attEntry1, attEntry2) -> attEntry1.getValue() > attEntry2.getValue() ? 1 : -1).get();
                     numOfAppearances.add(Tuple2.of(pos, temp));
@@ -314,7 +311,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 // Remove all entries that have the least diverse attribute
                 ArrayList<Tuple> tuplesToDelete = new ArrayList<>(); // TODO-Later maybe use iterator to delete tuples if performance is better
                 for(Tuple tuple: allBigGammaEntries){
-                    // adjust to find also values from arrays TODO re-write
+                    // adjust to find also values from arrays
                     Object toCompare = (tuple.getField(mapEntryToDelete.f0).getClass().isArray() ? ((Object[]) tuple.getField(mapEntryToDelete.f0))[((Object[]) tuple.getField(mapEntryToDelete.f0)).length-1] : tuple.getField(mapEntryToDelete.f0));
                     if(toCompare.equals(mapEntryToDelete.f1.getKey())){
                         tuplesToDelete.add(tuple);
@@ -327,6 +324,11 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         return false;
     }
 
+    /**
+     * Merges the input cluster with other clusters until k is fulfilled
+     * @param input Cluster to fill up
+     * @return merged input cluster
+     */
     private Cluster mergeClusters(Cluster input) {
         while(input.size() < k){
             numMergedCluster.inc();
@@ -358,6 +360,12 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         if(cluster.size() <= 0) bigGamma.remove(cluster);
     }
 
+    /**
+     * Outputs a cluster in an anonymized state back into the main data stream.
+     * If the cluster has enough tuples and diversity it will be split before outputting.
+     * @param input Cluster to output
+     * @param output anonymized data tuples inside cluster
+     */
     private void outputCluster(Cluster input, Collector output) {
         ArrayList<Cluster> clusters = new ArrayList<>();
         if(input.size() >= (2*k) && input.diversity(posSensibleAttributes) >= l){
@@ -387,7 +395,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     }
 
     /**
-     * Update tau be calculating the average of the 'mu' last infoLoss values
+     * Update 'tau' be calculating the average of the 'mu' last infoLoss values
      * @param clusterInfoLoss new infoLoss from the last generalized cluster (will be added to recentInfoLoss)
      */
     private void updateTau(float clusterInfoLoss) {
@@ -474,6 +482,11 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         return output;
     }
 
+    /**
+     * Attempts to split the input cluster into smaller sub-clusters, considering l-diversity.
+     * @param input Cluster to split
+     * @return split sub-clusters or if split not possible the input cluster
+     */
     private Collection<Cluster> splitL(Cluster input) {
 
         ArrayList<Cluster> output = new ArrayList<>();
@@ -486,8 +499,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 input.addAllEntries(bucket);
             }
             output.add(input);
-            // TODO delete after testing
-            checkGeneratedClusters(output, "bucket.size to small. No bucket generation");
             return output;
         }
 
@@ -524,7 +535,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
                 enlargement.sort(Comparator.comparing(o -> (o.f1)));
 
                 // Select first (k*(bucket.size()/sum)) tuples or at least 1 and move them to the new cluster
-                // TODO maybe later if the selection of tuples to add is to large high enlargement values can flow into the cluster. Check if other approach may have less info loss
+                // TODO-later if the selection of tuples to add is to large high enlargement values can flow into the cluster. Check if other approach may have less info loss
                 if(bucket.size() > 0) {
                     double amountToAdd = Math.max((k * (bucket.size() / (float) sum)), 1);
                     for (int i = 0; i < amountToAdd; i++) {
@@ -591,21 +602,21 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
         return output;
     }
 
-    // Pur testing function delete after testing
-    private void checkGeneratedClusters(ArrayList<Cluster> output, String text) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("----------| Cluster Check (").append(text).append(") |---------- \n");
-        for (int i = 0; i < output.size(); i++) {
-            sb.append("| Output Cluster Nr:").append(i).append("\n");
-            sb.append("| Diversity:").append(output.get(i).diversity(posSensibleAttributes)).append(" l:").append(l).append("\n");
-            sb.append("| Has entries:\n");
-            for(Tuple tuple: output.get(i).getAllEntries()){
-                sb.append("| - ").append(tuple).append("\n");
-            }
-        }
-        sb.append("---------------------------------");
-        System.out.println(sb.toString());
-    }
+    // Pur testing function delete for full release
+//    private void checkGeneratedClusters(ArrayList<Cluster> output, String text) {
+//        StringBuilder sb = new StringBuilder();
+//        sb.append("----------| Cluster Check (").append(text).append(") |---------- \n");
+//        for (int i = 0; i < output.size(); i++) {
+//            sb.append("| Output Cluster Nr:").append(i).append("\n");
+//            sb.append("| Diversity:").append(output.get(i).diversity(posSensibleAttributes)).append(" l:").append(l).append("\n");
+//            sb.append("| Has entries:\n");
+//            for(Tuple tuple: output.get(i).getAllEntries()){
+//                sb.append("| - ").append(tuple).append("\n");
+//            }
+//        }
+//        sb.append("---------------------------------");
+//        System.out.println(sb.toString());
+//    }
 
     /**
      * Generates a HashMap (Buckets inside CASTLE) with one tuples per 'pid' inside input, while using the sensible attribute as key
@@ -622,7 +633,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             for(Tuple tuple: input.getAllEntries()){
                 long tupleId = tuple.getField(posTupleId);
                 if(usedIds.add(tupleId)){
-                    // TODO check if it works with objects
                     output.putIfAbsent(tuple.getField(posSensibleAttributes[0]), new ArrayList<>());
                     output.get(tuple.getField(posSensibleAttributes[0])).add(tuple);
                     inputTuplesToDelete.add(tuple);
@@ -643,7 +653,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             List<Tuple2<Integer, Map.Entry<Object, Long>>> numOfAppearances = new ArrayList<>();
             while (oneIdTuples.size() > 0) {
                 for (int pos: posSensibleAttributes) {
-                    // TODO check if two strings are added to the same grouping if they have the same value but are different objects
                     Map.Entry<Object, Long> temp = oneIdTuples.stream().collect(Collectors.groupingBy(s -> (s.getField(pos).getClass().isArray() ? ((Object[]) s.getField(pos))[((Object[]) s.getField(pos)).length-1] : s.getField(pos)), Collectors.counting()))
                             .entrySet().stream().max((attEntry1, attEntry2) -> attEntry1.getValue() > attEntry2.getValue() ? 1 : -1).get();
                     numOfAppearances.add(Tuple2.of(pos, temp));
@@ -760,7 +769,7 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     // Metric section
 
     @Override
-    public void open(Configuration config) throws Exception {
+    public void open(Configuration config) {
         // Gauge section
         getRuntimeContext().getMetricGroup()
                 .addGroup("Prink")
@@ -834,7 +843,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
     @Override
     public void snapshotState(FunctionSnapshotContext functionSnapshotContext) throws Exception {
         checkpointedState.clear();
-        // TODO check if bigOmega needs to be saved as well
         checkpointedState.add(new Tuple2<>(bigGamma, globalTuples));
     }
 
@@ -850,8 +858,6 @@ public class CastleFunction extends KeyedBroadcastProcessFunction
             Tuple2<ArrayList<Cluster>, ArrayList<Tuple>> entry = (Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>) checkpointedState.get();
             bigGamma = entry.f0;
             globalTuples = entry.f1;
-
-            // TODO recreate rules array (see broadcast input)
         }
     }
 }

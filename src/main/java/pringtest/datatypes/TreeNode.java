@@ -5,20 +5,32 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import java.util.Set;
 import java.util.TreeSet;
 
+/**
+ * Class used to create domain generalization hierarchies and work with them
+ */
 public class TreeNode implements Comparable<TreeNode>{
     private final TreeNode parent;
     private final String content;
-    private final Set<TreeNode> children = new TreeSet<>(); //TODO check if TreeSet is the best choice
+    private final Set<TreeNode> children = new TreeSet<>(); //TODO-later check if TreeSet is the best choice
+    /** Parameters to measure the current coverage of entries in the tree for this node */
     private int coverage = 0;
     /** Parameters to measure the enlargement value/infoLoss for new node */
     private int coverageTemporary = 0;
-    private boolean showInfoLoss = false;
 
+    /**
+     * Constructor of TreeNode
+     * @param content The value of the node
+     * @param parent The parent node assigned to this node
+     */
     public TreeNode(String content, TreeNode parent){
         this.content = content;
         this.parent = parent;
     }
 
+    /**
+     * Constructor of TreeNode
+     * @param content The value of the node
+     */
     public TreeNode(String content){
         this.content = content;
         this.parent = null;
@@ -72,7 +84,6 @@ public class TreeNode implements Comparable<TreeNode>{
             }
         }
         // If no value is present add hierarchy to the root
-        // ContainingNode is the smallest value of the input (the value with the most information aka the leaf)
         TreeNode containingNode = this;
         for(String value: input) {
             containingNode = containingNode.addNode(value);
@@ -150,9 +161,7 @@ public class TreeNode implements Comparable<TreeNode>{
     private float infoLoss(int totalNumLeaves) {
         int subtreeLeaves = numOfLeaves()-1;
         // Return 0 if the subtree in question is a leaf node
-        if(showInfoLoss && subtreeLeaves <= 0) System.out.println("DEBUG: infoLoss test: (" + numOfLeaves() + "-1)/(" + totalNumLeaves + "-1) = " + 0);
         if(subtreeLeaves <= 0) return 0f;
-        if(showInfoLoss) System.out.println("DEBUG: infoLoss test: (" + numOfLeaves() + "-1)/(" + totalNumLeaves + "-1) = " + ((float)(numOfLeaves()-1)/(float)(totalNumLeaves-1)));
         return ((float)(numOfLeaves()-1)/(float)(totalNumLeaves-1));
     }
 
@@ -183,6 +192,7 @@ public class TreeNode implements Comparable<TreeNode>{
         return content;
     }
 
+//    // pure debug function
 //    public void printTree(int depth) {
 //        StringBuilder builder = new StringBuilder();
 //        for(int i = 0; i < depth; i++) {

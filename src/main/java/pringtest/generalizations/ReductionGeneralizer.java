@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 import pringtest.datatypes.Cluster;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -34,6 +33,13 @@ public class ReductionGeneralizer implements BaseGeneralizer{
         return generalize(null, pos);
     }
 
+    /**
+     * Reduces information by replacing the last values with '*' until all values are the same, while conserving the additional tuples 'withTuples'
+     * @param withTuples Tuples to consider when calculating generalization
+     * @param pos Position of the value inside the tuple
+     * @return Tuple2<String, Float> where f1 is the reduced value as a String
+     * and f2 is the information loss of the generalization
+     */
     @Override
     public Tuple2<String, Float> generalize(List<Tuple> withTuples, int pos) {
 
@@ -52,8 +58,6 @@ public class ReductionGeneralizer implements BaseGeneralizer{
 
         if(withTuples != null){
             for (int i = 0; i < withTuples.size(); i++) {
-//                Long temp = withTuples.get(i).getField(pos);
-//                ids[i + entries.size()] = String.valueOf(temp);
                 ids[i + entries.size()] = withTuples.get(i).getField(pos).toString();
             }
         }
@@ -70,7 +74,7 @@ public class ReductionGeneralizer implements BaseGeneralizer{
             }
             numReducted++;
             // Break loop when all values are the same
-            // TODO check if HashSet methode to find count is faster
+            // TODO-later check if HashSet methode to find count is faster
             if (Stream.of(ids).distinct().count() <= 1) break;
         }
         float infoLoss = (numReducted > 0) ? (numReducted/maxLength) : 0 ;

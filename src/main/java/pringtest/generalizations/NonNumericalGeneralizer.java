@@ -19,6 +19,10 @@ public class NonNumericalGeneralizer implements BaseGeneralizer{
 
     private static final Logger LOG = LoggerFactory.getLogger(NonNumericalGeneralizer.class);
 
+    /**
+     * Constructor of the Non-Numerical Generalizer
+     * @param rules CastleRules to follow when generalizing
+     */
     public NonNumericalGeneralizer(CastleRule[] rules){
         this.config = rules;
         // Add rule defined trees to the generalizer

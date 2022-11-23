@@ -11,6 +11,10 @@ import pringtest.generalizations.ReductionGeneralizer;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Cluster class used by the CastleFunction to group data tuples together and generalize them.
+ * Also handles information loss and enlargement calculation.
+ */
 public class Cluster {
 
     private final CastleRule[] config;
@@ -27,9 +31,15 @@ public class Cluster {
     // DEBUG params
     boolean showRemoveEntry = false;
     boolean showAddedEntry = false;
-    boolean showInfoLoss = false;
+    boolean showInfoLoss;
     boolean showEnlargement = false;
 
+    /**
+     * Constructor of the Cluster class
+     * @param rules Array of CastleRules to follow
+     * @param posTupleId Position of the tuple id inside the used tuples
+     * @param showInfoLoss If true, the information loss will be added to the output tuple
+     */
     public Cluster(CastleRule[] rules, int posTupleId, boolean showInfoLoss) {
         this.config = rules;
         this.posTupleId = posTupleId;
@@ -39,26 +49,51 @@ public class Cluster {
         nonNumGeneralizer = new NonNumericalGeneralizer(config);
     }
 
+    /**
+     * Calculates the enlargement value of this cluster when adding the given input
+     * @param input Cluster to consider for the enlargement calculation
+     * @return Enlargement value with input
+     */
     public Float enlargementValue(Cluster input) {
         if(entries.size() <= 0) LOG.error("enlargementValue(Cluster) called on cluster with size: 0 ");
         if(showEnlargement) System.out.println("Enlargement Value Cluster:" + (informationLossWith(input) - infoLoss()));
         return informationLossWith(input) - infoLoss();
     }
 
+    /**
+     * Calculates the enlargement value of this cluster when adding the given input
+     * @param input Tuple to consider for the enlargement calculation
+     * @return Enlargement value with input
+     */
     public Float enlargementValue(Tuple input) {
         if(entries.size() <= 0) LOG.error("enlargementValue(tuple) called on cluster with size: 0");
         if(showEnlargement) System.out.println("Enlargement Value Tuple:" + (informationLossWith(input) - infoLoss()));
         return informationLossWith(input) - infoLoss();
     }
 
+    /**
+     * Calculates the information loss of this cluster when adding the given input
+     * @param input Cluster to consider for the information loss calculation
+     * @return Information loss value with input
+     */
     public float informationLossWith(Cluster input) {
         return informationLossWith(input.getAllEntries());
     }
 
+    /**
+     * Calculates the information loss of this cluster when adding the given input
+     * @param input Tuple to consider for the information loss calculation
+     * @return Information loss value with input
+     */
     public float informationLossWith(Tuple input) {
         return informationLossWith(Collections.singletonList(input));
     }
 
+    /**
+     * Calculates the information loss of this cluster when adding the given input
+     * @param input List of tuples to consider for the information loss calculation
+     * @return Information loss value with input
+     */
     private float informationLossWith(List<Tuple> input) {
         if(entries.size() <= 0){
             LOG.error("informationLossWith() called on cluster with size: 0");
@@ -90,6 +125,10 @@ public class Cluster {
         return calcCombinedInfoLoss(infoLossWith);
     }
 
+    /**
+     * Calculates the information loss of this cluster
+     * @return Information loss value of the cluster
+     */
     public float infoLoss() {
         if(entries.size() <= 0){
             LOG.error("infoLoss() called on cluster with size: 0");
@@ -161,6 +200,12 @@ public class Cluster {
         return output;
     }
 
+    /**
+     * Creates a generalized tuple based on the currently included data tuples in 'entries' and
+     * the provided rules. Data fields that are not generalized use the provided value from the input.
+     * @param input Tuple to use for field values that are not generalized
+     * @return Generalized tuple
+     */
     public Tuple generalize(Tuple input) {
 
         // Return new tuple with generalized field values
@@ -255,13 +300,11 @@ public class Cluster {
     }
 
     public void removeEntry(Tuple input) {
-        // TODO check if boundaries need to be adjusted when removing tuples
         entries.remove(input);
         if(showRemoveEntry) System.out.println("Cluster: removeEntry -> new size:" + entries.size());
     }
 
     public void removeAllEntries(ArrayList<Tuple> idTuples) {
-        // TODO check if boundaries need to be adjusted when removing tuples
         entries.removeAll(idTuples);
         if(showRemoveEntry) System.out.println("Cluster: removeAllEntry -> new size:" + entries.size());
     }
@@ -279,7 +322,7 @@ public class Cluster {
      * @return Number of distinct values for the posTupleId inside entries
      */
     public int size() {
-        // TODO change to tupleIds and maybe find better performing solution. See: https://stackoverflow.com/questions/17973098/is-there-a-faster-way-to-extract-unique-values-from-object-collection
+        // TODO-later maybe find better performing solution. See: https://stackoverflow.com/questions/17973098/is-there-a-faster-way-to-extract-unique-values-from-object-collection
         Set<Object> tupleIds = new HashSet<>();
         for(final Tuple entry: entries) {
             tupleIds.add(entry.getField(posTupleId));
@@ -294,8 +337,6 @@ public class Cluster {
     public int diversity(int[] posSensibleAttributes) {
         if(posSensibleAttributes.length <= 0) return 0;
         if(posSensibleAttributes.length == 1){
-            // TODO test if correct (if object can be compared with object)
-            // TODO check if all values need to be sorted first by pid
             // Return the amount of different values inside the sensible attribute
             Set<Object> output = new HashSet<>();
             for(Tuple tuple: entries){
@@ -307,7 +348,7 @@ public class Cluster {
             return output.size();
         }else{
             // See for concept: https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1
-            // TODO maybe replace with new ArrayList<Tuple>(entires) or use @SuppressWarnings("unchecked");
+            // TODO-later maybe replace with new ArrayList<Tuple>(entires) or use @SuppressWarnings("unchecked"); to remove warning
             ArrayList<Tuple> entriesCopy = (ArrayList<Tuple>) entries.clone();
             List<Tuple2<Integer, Map.Entry<Object, Long>>> numOfAppearances = new ArrayList<>();
             int counter = 0;
@@ -315,7 +356,6 @@ public class Cluster {
             while (entriesCopy.size() > 0) {
                 counter++;
                 for (int pos : posSensibleAttributes) {
-                    // TODO check if two strings are added to the same grouping if they have the same value but are different objects
                     Map.Entry<Object, Long> temp = entriesCopy.stream().collect(Collectors.groupingBy(s -> (s.getField(pos).getClass().isArray() ? ((Object[]) s.getField(pos))[((Object[]) s.getField(pos)).length-1] : s.getField(pos)), Collectors.counting()))
                             .entrySet().stream().max((attEntry1, attEntry2) -> attEntry1.getValue() > attEntry2.getValue() ? 1 : -1).get();
                     numOfAppearances.add(Tuple2.of(pos, temp));
@@ -324,7 +364,7 @@ public class Cluster {
                 // Remove all entries that have the least diverse attribute
                 ArrayList<Tuple> tuplesToDelete = new ArrayList<>(); // TODO-Later maybe use iterator to delete tuples if performance is better
                 for(Tuple tuple: entriesCopy){
-                    // adjust to find also values from arrays TODO re-write
+                    // adjust to find also values from arrays
                     Object toCompare = (tuple.getField(mapEntryToDelete.f0).getClass().isArray() ? ((Object[]) tuple.getField(mapEntryToDelete.f0))[((Object[]) tuple.getField(mapEntryToDelete.f0)).length-1] : tuple.getField(mapEntryToDelete.f0));
                     if(toCompare.equals(mapEntryToDelete.f1.getKey())){
                         tuplesToDelete.add(tuple);

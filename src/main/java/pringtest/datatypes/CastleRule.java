@@ -5,13 +5,16 @@ import pringtest.CastleFunction;
 
 import java.util.ArrayList;
 
+/**
+ * Rule definition function used by Prink to configure rule set
+ */
 public class CastleRule {
 
     private final int position;
     private final CastleFunction.Generalization generalizationType;
     private Tuple2<Float, Float> domain;
     private ArrayList<String[]> treeEntries;
-    private boolean isSensibleAttribute;
+    private final boolean isSensibleAttribute;
     private double infoLossMultiplier;
 
     public CastleRule(int position, CastleFunction.Generalization generalizationType, Tuple2<Float,Float> domain, boolean isSensibleAttribute, double infoLossMultiplier){
