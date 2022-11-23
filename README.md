@@ -11,7 +11,7 @@ To use Prink add the `CastleFunction` as a process into your data stream using `
 
 	.process(new CastleFunction())
 
-Make sure to key your data stream by the user identifier using the `.keyBy()` function (in the example below user_id is at field position 0):
+Make sure to key your data stream by the user identifier using the `.keyBy()` function (in the example below `user_id` is at field position 0):
 
 	.keyBy(dataTuple -> dataTuple.getField(0))
 
@@ -19,7 +19,7 @@ Add a `ruleBroadcastStream` using the `.connect()` function to be able to commun
 
 	.connect(ruleBroadcastStream)
 
-You can use your own implementation for the `ruleBroadcastStream` or if you only want to transfer some rules at startup a collection generated stream (see below for example).
+You can use your own implementation for the `ruleBroadcastStream` or if you only want to transfer some rules at startup a collection generated stream, as seen below.
 Prink uses a `MapState` for rule broascasting:
 
 	MapStateDescriptor<Integer, CastleRule> ruleStateDescriptor =
@@ -37,7 +37,7 @@ Prink uses a `MapState` for rule broascasting:
                 .fromCollection(rules)
                 .broadcast(ruleStateDescriptor);
 
-Currently it is needed to specify the return type of the data stream. Use the `.returns()` function to do so (change the `Tuple` size for your project).
+Currently, it is needed to specify the return type of the data stream. Use the `.returns()` function to do so (change the `Tuple` size to the required size of your project).
 
 	.returns(TypeInformation.of(new TypeHint<Tuple4<Object, Object, Object, Object>>(){}));
 
@@ -96,7 +96,7 @@ For the anonymization of the data stream Prink uses `CastleRules` to define how 
 | domain (Optional)      | Tuple2<Float,Float>           | Tuple2<min Value, max Value>  | Defines to minimal and maximal value for the AggregationGeneralizer      |
 | treeEntries (Optional) | ArrayList<String[]>           | ArrayList<String[]>  | Defines the tree structure to be used for the NonNumericalGeneralizer    |
 | isSensibleAttribute    | boolean                       | [true, false]        | Defines if the position inside the data tuple is a sensible attribute    |
-
+| infoLossMultiplier (Optional)| double                  | 0.0 - 1.0                  | Defines the multiplier for the Normalized Certainty Penalty calculation. If all rule values sum up to 1 the Normalized Certainty Penalty is used 
 ## Prink Generalizers
 Currently Prink provides the following Generalizers for the data:
 
@@ -111,16 +111,27 @@ Currently Prink provides the following Generalizers for the data:
 | NONE                                | `new CastleRule(5, CastleFunction.Generalization.NONE, false)` | No data change  |
 
 ### Non-Numerical-Generalizer
-*WIP*
+To use the `Non-Numerical-Generalizer` a domain generalization hierarchy needs to be defined.
 
-### Add your own Generalizer
-*WIP*
+This can be done in two ways:
 
-## Metrics
-*WIP*
+- by sending a `Array` (`["Europe", "West-Europe","Germany"]`) instead of a `String` (`"Germany"`) as the data tuples attribute (This option is not encouraged and should only be used if really needed!)
+- by providing it at the rule definition (Encouraged option):
+  
 
-## Contributing
-*WIP*
+    ArrayList<String[]> treeNation = new ArrayList<>();
+    treeNation.add(new String[]{"Europe", "South-Europe","Greece"});
+    treeNation.add(new String[]{"Europe", "South-Europe","Italy"});
+    treeNation.add(new String[]{"Europe", "South-Europe","Portugal"});
+    treeNation.add(new String[]{"Europe", "West-Europe","England"});
+    treeNation.add(new String[]{"Europe", "West-Europe","Germany"});
+    treeNation.add(new String[]{"Asia", "West-Asia","Iran"});
+
+    new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false)
+
+[comment]: <> (## Contributing)
+
+[comment]: <> (*WIP*)
 
 ## License
 The project will be open source. *WIP*
