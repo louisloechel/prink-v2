@@ -117,8 +117,8 @@ This can be done in two ways:
 
 - by sending a `Array` (`["Europe", "West-Europe","Germany"]`) instead of a `String` (`"Germany"`) as the data tuples attribute (This option is not encouraged and should only be used if really needed!)
 - by providing it at the rule definition (Encouraged option):
-  
 
+```
     ArrayList<String[]> treeNation = new ArrayList<>();
     treeNation.add(new String[]{"Europe", "South-Europe","Greece"});
     treeNation.add(new String[]{"Europe", "South-Europe","Italy"});
@@ -128,7 +128,7 @@ This can be done in two ways:
     treeNation.add(new String[]{"Asia", "West-Asia","Iran"});
 
     new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false)
-
+```
 [comment]: <> (## Contributing)
 
 [comment]: <> (*WIP*)
