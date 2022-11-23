@@ -32,7 +32,7 @@ class ReductionGeneralizerTest {
 
         CastleRule[] rules = rulesTemp.toArray(new CastleRule[0]);
 
-        baseCluster = new Cluster(rules, false);
+        baseCluster = new Cluster(rules, 0,false);
 
         subject = new ReductionGeneralizer(baseCluster);
     }

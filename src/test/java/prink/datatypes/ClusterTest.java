@@ -53,7 +53,7 @@ class ClusterTest {
             rulesTemp.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
             rulesTemp.add(new CastleRule(3, CastleFunction.Generalization.NONE, true));
 
-            CastleRule[] rules = rulesTemp.toArray(new CastleRule[rulesTemp.size()]);
+            CastleRule[] rules = rulesTemp.toArray(new CastleRule[0]);
 
             subject = new Cluster(rules, 0, false);
         }
