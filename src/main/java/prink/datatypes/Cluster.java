@@ -27,12 +27,18 @@ public class Cluster {
     private final NonNumericalGeneralizer nonNumGeneralizer;
 
     private static final Logger LOG = LoggerFactory.getLogger(Cluster.class);
+    private float cachedInfoLoss = -1;
 
+    /** If true caches enlargement value results per generalized attribute (gets cleared when new entity is added to the cluster) */
+    private final boolean CACHE_INFO_LOSS_PER_ATT = true;
+    final int MAX_CACHED_ENTRIES = 100;
     // DEBUG params
     boolean showRemoveEntry = false;
     boolean showAddedEntry = false;
     boolean showInfoLoss;
     boolean showEnlargement = false;
+
+    List<Map<Object, Double>> infoLossValuesRequests = new ArrayList<>();
 
     /**
      * Constructor of the Cluster class
@@ -54,7 +60,7 @@ public class Cluster {
      * @param input Cluster to consider for the enlargement calculation
      * @return Enlargement value with input
      */
-    public Float enlargementValue(Cluster input) {
+    public float enlargementValue(Cluster input) {
         if(entries.size() <= 0) LOG.error("enlargementValue(Cluster) called on cluster with size: 0 ");
         if(showEnlargement) System.out.println("Enlargement Value Cluster:" + (informationLossWith(input) - infoLoss()));
         return informationLossWith(input) - infoLoss();
@@ -65,7 +71,7 @@ public class Cluster {
      * @param input Tuple to consider for the enlargement calculation
      * @return Enlargement value with input
      */
-    public Float enlargementValue(Tuple input) {
+    public float enlargementValue(Tuple input) {
         if(entries.size() <= 0) LOG.error("enlargementValue(tuple) called on cluster with size: 0");
         if(showEnlargement) System.out.println("Enlargement Value Tuple:" + (informationLossWith(input) - infoLoss()));
         return informationLossWith(input) - infoLoss();
@@ -95,6 +101,8 @@ public class Cluster {
      * @return Information loss value with input
      */
     private float informationLossWith(List<Tuple> input) {
+        boolean singularInput = (input.size() == 1);
+
         if(entries.size() <= 0){
             LOG.error("informationLossWith() called on cluster with size: 0");
             return 0.0f;
@@ -102,6 +110,29 @@ public class Cluster {
         double[] infoLossWith = new double[config.length];
 
         for (int i = 0; i < config.length; i++) {
+            // Check if the value needs to be generalized and if there is an existing cache for it. If so return it
+            if(CACHE_INFO_LOSS_PER_ATT && singularInput && !config[i].getGeneralizationType().equals(CastleFunction.Generalization.NONE)) {
+                if(infoLossValuesRequests.size() <= i) {
+                    while (infoLossValuesRequests.size() <= i){
+                        // Use a LinkedHashMap to limit size of cache. Set MAX_CACHED_ENTRIES for size of cache per generalized attribute
+                        infoLossValuesRequests.add(new LinkedHashMap<Object, Double>(MAX_CACHED_ENTRIES*10/7, 0.7f, true) {
+                            @Override
+                            protected boolean removeEldestEntry(Map.Entry<Object, Double> eldest) {
+                                return size() > MAX_CACHED_ENTRIES;
+                            }
+                        });
+                    }
+                }
+                Map<Object, Double> requestCounter = infoLossValuesRequests.get(i);
+                Object valueToCheck = input.get(0).getField(i);
+
+                if(requestCounter.containsKey(valueToCheck)){
+                    infoLossWith[i] = requestCounter.get(valueToCheck);
+                    continue;
+                }
+            }
+
+            // If no cache is hit calculate information loss with input
             switch (config[i].getGeneralizationType()) {
                 case NONE:
                     infoLossWith[i] = 0;
@@ -121,6 +152,8 @@ public class Cluster {
                 default:
                     LOG.error("informationLossWith() -> undefined transformation type: {}", config[i]);
             }
+            // Add info loss to cache if input is singular and not of type NONE
+            if(CACHE_INFO_LOSS_PER_ATT && singularInput && !config[i].getGeneralizationType().equals(CastleFunction.Generalization.NONE)) infoLossValuesRequests.get(i).put(input.get(0).getField(i), infoLossWith[i]);
         }
         return calcCombinedInfoLoss(infoLossWith);
     }
@@ -130,6 +163,8 @@ public class Cluster {
      * @return Information loss value of the cluster
      */
     public float infoLoss() {
+        // check if cached value exist
+        if(cachedInfoLoss != -1) return cachedInfoLoss;
         if(entries.size() <= 0){
             LOG.error("infoLoss() called on cluster with size: 0");
             return 0.0f;
@@ -161,11 +196,14 @@ public class Cluster {
                     LOG.error("infoLoss() -> undefined transformation type: {}", config[i]);
             }
         }
-        return calcCombinedInfoLoss(infoLoss);
+        float output = calcCombinedInfoLoss(infoLoss);
+        // cache infoLoss until new tuple is added
+        cachedInfoLoss = output;
+        return output;
     }
 
     /**
-     * Calculates the combined information loss for the cluster using the provided info loss values
+     * Calculates the combined information loss for the cluster using the provided info loss values.
      * If all InfoLoss rule multiplier combined are equal to 1 the Normalized Certainty Penalty is used.
      * If not a normal average calculation is used.
      * @param infoLoss Information Loss values to use to calculate combined information loss result
@@ -207,7 +245,6 @@ public class Cluster {
      * @return Generalized tuple
      */
     public Tuple generalize(Tuple input) {
-
         // Return new tuple with generalized field values
         int inputArity = input.getArity();
         if(showInfoLoss) inputArity++;
@@ -245,12 +282,11 @@ public class Cluster {
 
     /**
      * Generalizes the input tuple with the maximum generalization of the generalizers
-     * (Can be used on an cluster without entries)
+     * (Can be used on a cluster without entries)
      * @param input Tuple to generalize
      * @return Maximal generalized tuple
      */
     public Tuple generalizeMax(Tuple input) {
-
         // Return new tuple with generalized field values
         int inputArity = input.getArity();
         if(showInfoLoss) inputArity++;
@@ -282,16 +318,32 @@ public class Cluster {
     }
 
     public void addEntry(Tuple input) {
-        if (showAddedEntry) System.out.println("Added " + input.toString() + " to cluster: " + this.toString() + " size:" + this.entries.size());
+        if(CACHE_INFO_LOSS_PER_ATT){
+            for (Map<Object, Double> cacheMap: infoLossValuesRequests) {
+                cacheMap.clear();
+            }
+        }
+
+        if (showAddedEntry) System.out.println("Added " + input.toString() + " to cluster: " + this + " size:" + this.entries.size());
         entries.add(input);
+        // Invalidate cache of infoLoss
+        cachedInfoLoss = -1;
         // Update the aggregation boundaries
         aggreGeneralizer.updateAggregationBounds(input);
         nonNumGeneralizer.updateTree(input);
     }
 
     public void addAllEntries(ArrayList<Tuple> input) {
-        if (showAddedEntry) System.out.println("Added multiple (" + input.size() + ") to cluster: " + this.toString() + " size:" + this.entries.size());
+        if(CACHE_INFO_LOSS_PER_ATT){
+            for (Map<Object, Double> cacheMap: infoLossValuesRequests) {
+                cacheMap.clear();
+            }
+        }
+
+        if (showAddedEntry) System.out.println("Added multiple (" + input.size() + ") to cluster: " + this + " size:" + this.entries.size());
         entries.addAll(input);
+        // Invalidate cache of infoLoss
+        cachedInfoLoss = -1;
         // Update the aggregation boundaries for all inputs
         for (Tuple in : input) {
             aggreGeneralizer.updateAggregationBounds(in);
@@ -348,7 +400,7 @@ public class Cluster {
             return output.size();
         }else{
             // See for concept: https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1
-            // TODO-later maybe replace with new ArrayList<Tuple>(entires) or use @SuppressWarnings("unchecked"); to remove warning
+            @SuppressWarnings("unchecked")
             ArrayList<Tuple> entriesCopy = (ArrayList<Tuple>) entries.clone();
             List<Tuple2<Integer, Map.Entry<Object, Long>>> numOfAppearances = new ArrayList<>();
             int counter = 0;
@@ -357,7 +409,7 @@ public class Cluster {
                 counter++;
                 for (int pos : posSensibleAttributes) {
                     Map.Entry<Object, Long> temp = entriesCopy.stream().collect(Collectors.groupingBy(s -> (s.getField(pos).getClass().isArray() ? ((Object[]) s.getField(pos))[((Object[]) s.getField(pos)).length-1] : s.getField(pos)), Collectors.counting()))
-                            .entrySet().stream().max((attEntry1, attEntry2) -> attEntry1.getValue() > attEntry2.getValue() ? 1 : -1).get();
+                            .entrySet().stream().max((attEntry1, attEntry2) -> attEntry1.getValue() > attEntry2.getValue() ? 1 : -1).orElse(null); //.get();
                     numOfAppearances.add(Tuple2.of(pos, temp));
                 }
                 Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> attEntry1.f1.getValue() > attEntry2.f1.getValue() ? 1 : -1).get();
