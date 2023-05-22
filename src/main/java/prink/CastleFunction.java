@@ -155,8 +155,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
     public void processElement(INPUT tuple, ReadOnlyContext context, Collector<OUTPUT> output) {
         TimerService ts = context.timerService();
 
-//        Tuple tuple = (Tuple) input;
-        tuple.setField(ts.currentProcessingTime(), 2); // enable for testing testing
+//        tuple.setField(ts.currentProcessingTime(), 2); // TODO enable for performance testing only
 
         eventTimeLag.update(ts.currentProcessingTime() - ts.currentWatermark());
 
@@ -213,10 +212,9 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
                 return;
             }
 
-            // Check that total big gamma size is bigger than k before merging
-            int totalGammaSize = bigGamma.stream().mapToInt(Cluster::size).sum();
+            // Check that total big gamma size (size defined as the number of individual data subjects) is bigger than k before merging
             // it must also be checked that there exist at least 'l' distinct values of a_s among all clusters in bigGamma
-            if(totalGammaSize < k || !checkDiversityBigGamma()){
+            if(totalGammaSize() < k || !checkDiversityBigGamma()){
                 // suppress t based on suppressStrategy
                 if(suppressStrategy != 0) output.collect(suppressTuple(input));
                 removeTuple(input);
@@ -227,6 +225,20 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
             Cluster mergedCluster = mergeClusters(clusterWithInput);
             outputCluster(mergedCluster, output);
         }
+    }
+
+    /**
+     * Calculates the total number of distinct individuals inside bigGamma
+     * @return Number of distinct values for the posTupleId inside entries of all bigGamma clusters
+     */
+    private int totalGammaSize(){
+        Set<KEY> tupleIds = new HashSet<>();
+        for (Cluster gammaCluster: bigGamma) {
+            for(final Tuple entry: gammaCluster.getAllEntries()) {
+                tupleIds.add(entry.getField(posTupleId));
+            }
+        }
+        return tupleIds.size();
     }
 
     /**
