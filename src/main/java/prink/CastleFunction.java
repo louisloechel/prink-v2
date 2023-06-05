@@ -631,10 +631,10 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
             ArrayList<Tuple> idTuples = new ArrayList<>();
             for(Tuple tuple: cluster.getAllEntries()) {
                 // Select all tuples inside input with the same id value as tuple
-                long tupleId = tuple.getField(posTupleId);
+                KEY tupleId = tuple.getField(posTupleId);
                 for (Tuple inputTuple : input.getAllEntries()) {
-                    long tupleIdInput = inputTuple.getField(posTupleId);
-                    if (tupleId == tupleIdInput) idTuples.add(inputTuple);
+                    KEY tupleIdInput = inputTuple.getField(posTupleId);
+                    if (tupleId.equals(tupleIdInput)) idTuples.add(inputTuple);
                 }
             }
             if(idTuples.size() > 0) {
@@ -655,13 +655,13 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
      */
     private HashMap<Object, ArrayList<Tuple>> generateBucketsSensAtt(Cluster input) {
         HashMap<Object, ArrayList<Tuple>> output = new HashMap<>();
-        HashSet<Long> usedIds = new HashSet<>();
+        HashSet<KEY> usedIds = new HashSet<>();
         ArrayList<Tuple> inputTuplesToDelete = new ArrayList<>(); // TODO-Later maybe delete through iterator if more performant
 
         if(posSensibleAttributes.length <= 0) return output;
         if(posSensibleAttributes.length == 1){
             for(Tuple tuple: input.getAllEntries()){
-                long tupleId = tuple.getField(posTupleId);
+                KEY tupleId = tuple.getField(posTupleId);
                 if(usedIds.add(tupleId)){
                     output.putIfAbsent(tuple.getField(posSensibleAttributes[0]), new ArrayList<>());
                     output.get(tuple.getField(posSensibleAttributes[0])).add(tuple);
@@ -672,7 +672,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
             ArrayList<Tuple> oneIdTuples = new ArrayList<>();
             // Select one tuple per pid/tupleId
             for(Tuple tuple: input.getAllEntries()){
-                long tupleId = tuple.getField(posTupleId);
+                KEY tupleId = tuple.getField(posTupleId);
                 if(usedIds.add(tupleId)){
                     oneIdTuples.add(tuple);
                     inputTuplesToDelete.add(tuple);
