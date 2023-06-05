@@ -138,6 +138,9 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
 
         BroadcastState<Integer, CastleRule> currentRuleState = context.getBroadcastState(ruleStateDescriptor);
 
+        // Ignore rules without generalization type
+        if(rule.getGeneralizationType() == null) return;
+
         // Convert rule map into sorted array
         int numOfRules = Math.max((rules != null ? rules.length : 1), (rule.getPosition() + 1));
         CastleRule[] newRuleArray = new CastleRule[numOfRules];
@@ -149,7 +152,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
                 if (currentRuleState.contains(i)) {
                     newRuleArray[i] = currentRuleState.get(i);
                 }else{
-                    CastleRule missingRule = new CastleRule(i, Generalization.NONE, false);
+                    CastleRule missingRule = new CastleRule(i, Generalization.REDUCTION, false, 0.0);
                     context.getBroadcastState(ruleStateDescriptor).put(i, missingRule);
                     newRuleArray[i] = missingRule;
                 }
