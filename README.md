@@ -96,19 +96,20 @@ For the anonymization of the data stream Prink uses `CastleRules` to define how 
 | domain (Optional)      | Tuple2<Float,Float>           | Tuple2<min Value, max Value>  | Defines to minimal and maximal value for the AggregationGeneralizer      |
 | treeEntries (Optional) | ArrayList<String[]>           | ArrayList<String[]>  | Defines the tree structure to be used for the NonNumericalGeneralizer    |
 | isSensibleAttribute    | boolean                       | [true, false]        | Defines if the position inside the data tuple is a sensible attribute    |
-| infoLossMultiplier (Optional)| double                  | 0.0 - 1.0                  | Defines the multiplier for the Normalized Certainty Penalty calculation. If all rule values sum up to 1 the Normalized Certainty Penalty is used 
-## Prink Generalizers
-Currently Prink provides the following Generalizers for the data:
+| infoLossMultiplier (Optional)| double                  | 0.0 - 1.0                  | Defines the multiplier for the Normalized Certainty Penalty calculation. If all rule values sum up to 1 the Normalized Certainty Penalty is used |
 
-| generalizationType                  | Example Rule                                                                                                   | Generalization Result |
-|-------------------------------------|----------------------------------------------------------------------------------------------------------------|-----------------------|
-| REDUCTION                           | `new CastleRule(5, CastleFunction.Generalization.REDUCTION, false)`                                              | [123456, 12789, 12678] -> 12****             |
-| AGGREGATION                         | `new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f), false)`                        |  [20, 22, 35] -> [20-35]                   |
-| NONNUMERICAL                        | `new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEntries, false)`                              | (see Non-Numercial-Generalizer Chapter) |
-| REDUCTION_WITHOUT_GENERALIZATION    | `new CastleRule(5, CastleFunction.Generalization.REDUCTION_WITHOUT_GENERALIZATION, false)`                       | [123456, 12789, 12678] -> [123456, 12789, 12678] |
-| AGGREGATION_WITHOUT_GENERALIZATION  | `new CastleRule(5, CastleFunction.Generalization.AGGREGATION_WITHOUT_GENERALIZATION, Tuple2.of(0f,100f), false)` | [20, 22, 35] -> [20, 22, 35] |
+## Prink Generalizers
+Currently, Prink provides the following Generalizers for the data:
+
+| generalizationType                  | Example Rule                                                                                                     | Generalization Result                                  |
+|-------------------------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| REDUCTION                           | `new CastleRule(5, CastleFunction.Generalization.REDUCTION, false)`                                              | [123456, 12789, 12678] -> 12****                       |
+| AGGREGATION                         | `new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f), false)`                        | [20, 22, 35] -> [20-35]                                |
+| NONNUMERICAL                        | `new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEntries, false)`                              | (see Non-Numercial-Generalizer Chapter)                |
+| REDUCTION_WITHOUT_GENERALIZATION    | `new CastleRule(5, CastleFunction.Generalization.REDUCTION_WITHOUT_GENERALIZATION, false)`                       | [123456, 12789, 12678] -> [123456, 12789, 12678]       |
+| AGGREGATION_WITHOUT_GENERALIZATION  | `new CastleRule(5, CastleFunction.Generalization.AGGREGATION_WITHOUT_GENERALIZATION, Tuple2.of(0f,100f), false)` | [20, 22, 35] -> [20, 22, 35]                           |
 | NONNUMERICAL_WITHOUT_GENERALIZATION | `new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL_WITHOUT_GENERALIZATION, treeEntries, false)`       | No data change (see Non-Numercial-Generalizer Chapter) |
-| NONE                                | `new CastleRule(5, CastleFunction.Generalization.NONE, false)` | No data change  |
+| NONE                                | `new CastleRule(5, CastleFunction.Generalization.NONE, false)`                                                   | No data change                                         |
 
 ### Non-Numerical-Generalizer
 To use the `Non-Numerical-Generalizer` a domain generalization hierarchy needs to be defined.
@@ -132,6 +133,48 @@ This can be done in two ways:
 [comment]: <> (## Contributing)
 
 [comment]: <> (*WIP*)
+
+## DEBUG
+
+If you encounter the following error when starting a flink cluster and using Cygwin:
+
+    Improperly specified VM option 'MaxMetaspaceSize=268435456
+
+Follow the instructions here: https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/deployment/resource-providers/standalone/overview/#windows-cygwin-users
+
+See also for additional error: https://stackoverflow.com/questions/72132420/why-apache-flink-in-not-running-on-windows
+
+[//]: # (If you are installing Flink from the git repository and you are using the Windows git shell, Cygwin can produce a failure similar to this one:)
+
+[//]: # ()
+[//]: # (c:/flink/bin/start-cluster.sh: line 30: $'\r': command not found)
+
+[//]: # ()
+[//]: # (This error occurs because git is automatically transforming UNIX line endings to Windows style line endings when running on Windows. The problem is that Cygwin can only deal with UNIX style line endings. The solution is to adjust the Cygwin settings to deal with the correct line endings by following these three steps:)
+
+[//]: # ()
+[//]: # (    Start a Cygwin shell.)
+
+[//]: # ()
+[//]: # (    Determine your home directory by entering)
+
+[//]: # ()
+[//]: # (    cd; pwd)
+
+[//]: # ()
+[//]: # (    This will return a path under the Cygwin root path.)
+
+[//]: # ()
+[//]: # (    Using NotePad, WordPad or a different text editor open the file .bash_profile in the home directory and append the following &#40;if the file does not exist you will have to create it&#41;:)
+
+[//]: # ()
+[//]: # (    $ export SHELLOPTS)
+
+[//]: # (    $ set -o igncr)
+
+[//]: # ()
+[//]: # (    Save the file and open a new bash shell.)
+
 
 ## License
 The project will be open source. *WIP*

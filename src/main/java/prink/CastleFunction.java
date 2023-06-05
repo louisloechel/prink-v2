@@ -1,14 +1,12 @@
 package prink;
 
-import org.apache.flink.api.common.state.BroadcastState;
-import org.apache.flink.api.common.state.ListState;
-import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.state.MapStateDescriptor;
+import org.apache.flink.api.common.state.*;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Gauge;
@@ -27,6 +25,12 @@ import prink.datatypes.Cluster;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * The core class of the PRINK Castle implementation
+ * @param <KEY> the parameter that is used to distinguish unique data subjects from each other
+ * @param <INPUT> the data tuple format that is inserted into PRINK and needs to be anonymized
+ * @param <OUTPUT> the data tuple format that is outputted by PRINK and includes the generalized results
+ */
 public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> extends KeyedBroadcastProcessFunction<KEY, INPUT, CastleRule, OUTPUT>
         implements CheckpointedFunction {
 
@@ -62,9 +66,9 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
                     BasicTypeInfo.INT_TYPE_INFO,
                     TypeInformation.of(new TypeHint<CastleRule>(){}));
 
-    private transient ListState<Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>> checkpointedState;
+    private transient ListState<Tuple4<ArrayList<Cluster>, ArrayList<Tuple>, CastleRule[], int[]>> checkpointedState;
 
-    /** Value k for k-anonymity */
+    /** Value k for k_s-anonymity */
     private int k = 5;
     /** Value l for l-diversity (if 0 l-diversity is not applied) */
     private int l = 2;
@@ -94,10 +98,25 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
     private boolean showInfoLoss = false;
     /** Defines how to handle tuples that need to be suppressed.
      * 0 = no tuple is collected;
-     * 1 = every quasi-identifier gets nulled;
+     * 1 = every quasi-identifier gets replaced with <code>null</code>;
      * 2 = quasi-identifiers are generalized with max generalization values*/
     private int suppressStrategy = 2;
 
+    /**
+     * The core function of the PRINK Castle implementation
+     * @param posTupleId Position of the unique identifier inside the data tuple for the data subject. This value of this position should also be used as the key for the <code>keyBy()</code> function
+     * @param k Value k for k_s-anonymity
+     * @param l Value l for l-diversity (if <code>l = 0</code> l-diversity is not applied)
+     * @param delta Number of 'delayed' tuples inside Prink. <br>After <code>delta</code> tuples are collected inside Prink the cluster including the oldest tuple gets generalized and all included data tuples released back into the output stream
+     * @param beta Maximum number of clusters in <code>bigGamma</code> (<code>bigGamma</code>: Set of non-k_s anonymized clusters)
+     * @param zeta Maximum number of clusters in <code>bigOmega</code> (<code>bigOmega</code>: Set of k_s anonymized clusters)
+     * @param mu Number of last infoLoss values considered for the calculation of tau
+     * @param showInfoLoss If true Prink adds the info loss of a tuple at the end of the tuple (tuple size increases by 1)
+     * @param suppressStrategy Defines how to handle tuples that need to be suppressed.<br>
+     *                         0 = no tuple is collected <br>
+     *                         1 = every quasi-identifier gets replaced with <code>null</code> <br>
+     *                         2 = quasi-identifiers are generalized with max generalization values
+     */
     public CastleFunction(int posTupleId, int k, int l, int delta, int beta, int zeta, int mu, boolean showInfoLoss, int suppressStrategy){
         this.posTupleId = posTupleId;
         this.k = k;
@@ -145,14 +164,12 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
         }
         posSensibleAttributes = newPos.stream().mapToInt(i -> i).toArray();
 
-        // TODO-Later convert into Apache Flink Gauge
-//        for(CastleRule r: rules){
-//            System.out.println("Rule " + r.getPosition() + ": " + r.toString());
-//        }
     }
 
     @Override
     public void processElement(INPUT tuple, ReadOnlyContext context, Collector<OUTPUT> output) {
+        LOG.debug("Element received: key: {}", tuple.getField(posTupleId).toString());
+
         TimerService ts = context.timerService();
 
 //        tuple.setField(ts.currentProcessingTime(), 2); // TODO enable for performance testing only
@@ -307,7 +324,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
                 output.add(sensAttributeValue);
                 if(output.size() >= l) return true;
             }
-        }else {
+        } else {
             // See for concept: https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1
             List<Tuple2<Integer, Map.Entry<Object, Long>>> numOfAppearances = new ArrayList<>();
             int counter = 0;
@@ -389,7 +406,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
     @SuppressWarnings("unchecked")
     private void outputCluster(Cluster input, Collector<OUTPUT> output) {
         ArrayList<Cluster> clusters = new ArrayList<>();
-        if(input.size() >= (2*k) && input.diversity(posSensibleAttributes) >= l){
+        if(input.size() >= (2*k) && input.diversity(posSensibleAttributes) >= l && k >= 2){
             if(l > 0){
                 clusters.addAll(splitL(input));
             }else{
@@ -404,12 +421,15 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
             numCollectedClusters.inc();
             for(Tuple tuple: cluster.getAllEntries()){
                 output.collect((OUTPUT) cluster.generalize(tuple));
+                // Does not use removeTuple(), since the cluster is potentially reused through bigOmega
                 globalTuples.remove(tuple);
             }
             float clusterInfoLoss = cluster.infoLoss();
             updateTau(clusterInfoLoss);
-            if(clusterInfoLoss < tau) bigOmega.addLast(cluster);
-            updateBigOmega();
+            if(clusterInfoLoss < tau){
+                bigOmega.addLast(cluster);
+                updateBigOmega();
+            }
 
             bigGamma.remove(cluster);
         }
@@ -524,6 +544,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
 
         int sum = 0;
         for(ArrayList<Tuple> bucket: buckets.values()){
+            // Can use the normal definition of ArrayList.size() and not the number of individual data subjects size definition, since only one entry per data subject is present in all buckets (see: generateBucketsSensAtt())
             sum = sum + bucket.size();
         }
         while(buckets.size() >= l && sum >= k){
@@ -625,7 +646,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
     }
 
     /**
-     * Generates a HashMap (Buckets inside CASTLE) with one tuples per 'pid' inside input, while using the sensible attribute as key
+     * Generates a HashMap (Buckets inside CASTLE) with one tuple per 'pid' inside input, while using the sensible attribute as key
      * @param input Cluster with tuples to create HashMap
      * @return HashMap of one tuple per 'pid' sorted in 'buckets' based on 'sensible attribute'
      */
@@ -706,7 +727,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
     /**
      * Returns the non-k_s anonymized cluster that includes 'input'
      * @param input The tuple that needs to be included
-     * @return Cluster including 'input'
+     * @return Cluster including 'input'. 'null' if no cluster can be found
      */
     private Cluster getClusterContaining(Tuple input) {
         for(Cluster cluster: bigGamma){
@@ -851,22 +872,24 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
     @Override
     public void snapshotState(FunctionSnapshotContext functionSnapshotContext) throws Exception {
         checkpointedState.clear();
-        checkpointedState.add(new Tuple2<>(bigGamma, globalTuples));
+        checkpointedState.add(new Tuple4<>(bigGamma, globalTuples, rules, posSensibleAttributes));
     }
 
     @Override
     public void initializeState(FunctionInitializationContext context) throws Exception {
-        ListStateDescriptor<Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>> descriptor =
+        ListStateDescriptor<Tuple4<ArrayList<Cluster>, ArrayList<Tuple>, CastleRule[], int[]>> descriptor =
                 new ListStateDescriptor<>("bigGamma-globalTuples",
-                        TypeInformation.of(new TypeHint<Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>>(){}));
+                        TypeInformation.of(new TypeHint<Tuple4<ArrayList<Cluster>, ArrayList<Tuple>, CastleRule[], int[]>>(){}));
 
         checkpointedState = context.getOperatorStateStore().getListState(descriptor);
 
         if (context.isRestored()) {
             //noinspection unchecked needs additional work
-            Tuple2<ArrayList<Cluster>, ArrayList<Tuple>> entry = (Tuple2<ArrayList<Cluster>, ArrayList<Tuple>>) checkpointedState.get();
+            Tuple4<ArrayList<Cluster>, ArrayList<Tuple>, CastleRule[], int[]> entry = (Tuple4<ArrayList<Cluster>, ArrayList<Tuple>, CastleRule[], int[]>) checkpointedState.get();
             bigGamma = entry.f0;
             globalTuples = entry.f1;
+            rules = entry.f2;
+            posSensibleAttributes = entry.f3;
         }
     }
 }
