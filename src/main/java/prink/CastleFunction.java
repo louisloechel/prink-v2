@@ -365,7 +365,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
      * @return merged input cluster
      */
     private Cluster mergeClusters(Cluster input) {
-        while(input.size() < k){
+        while(input.size() < k || input.diversity(posSensibleAttributes) < l){ // TODO check if '|| input.diversity < l' needs to be added
             numMergedCluster.inc();
             float minEnlargement = Float.MAX_VALUE;
             Cluster clusterWithMinEnlargement = null;
@@ -583,7 +583,6 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
                 if(bucket.size() > 0) {
                     double amountToAdd = Math.max((k * (bucket.size() / (float) sum)), 1);
                     for (int i = 0; i < amountToAdd; i++) {
-                        if(newCluster.size() >= k) break;
                         newCluster.addEntry(enlargement.get(i).f0);
                         bucket.remove(enlargement.get(i).f0);
                     }
@@ -591,7 +590,6 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
 
                 // Remove buckets that have no values in them
                 if(bucket.size() <= 0) bucketKeysToDelete.add(bucketEntry.getKey());
-                if(newCluster.size() >= k) break;
             }
             // Remove buckets that have no values in them
             for(Object key: bucketKeysToDelete) buckets.remove(key);
