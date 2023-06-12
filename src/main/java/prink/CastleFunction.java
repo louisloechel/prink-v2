@@ -1,6 +1,9 @@
 package prink;
 
-import org.apache.flink.api.common.state.*;
+import org.apache.flink.api.common.state.BroadcastState;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -91,7 +94,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
     /** Last infoLoss values (max size = mu) */
     private final LinkedList<Float> recentInfoLoss = new LinkedList<>(Collections.nCopies(mu, 0f));
     /** Position of the id value inside the tuples */
-    private int posTupleId = 1;
+    private int posTupleId = 1; // TODO maybe replace with 'context.getCurrentKey()'
     /** Position of the l diversity sensible attribute */
     private int[] posSensibleAttributes = new int[]{1};
     /** If true Prink adds the info loss of a tuple at the end of the tuple (tuple size increases by 1)*/
@@ -204,7 +207,6 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
             LOG.error("delayConstraint -> clusterWithInput is NULL");
             return;
         }
-
         if(clusterWithInput.size() >= k && clusterWithInput.diversity(posSensibleAttributes) >= l){
             outputCluster(clusterWithInput, output);
         }else{
@@ -226,6 +228,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
 
             if(m > (bigGamma.size()/2)){
                 // suppress t based on suppressStrategy
+                LOG.debug("Tuple suppressed. Reason: m [{}] > (bigGamma.size() [{}] /2): true", m, bigGamma.size());
                 if(suppressStrategy != 0) output.collect(suppressTuple(input));
                 removeTuple(input);
                 numSuppressedTuples.inc();
@@ -236,6 +239,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
             // it must also be checked that there exist at least 'l' distinct values of a_s among all clusters in bigGamma
             if(totalGammaSize() < k || !checkDiversityBigGamma()){
                 // suppress t based on suppressStrategy
+                LOG.debug("Tuple suppressed. Reason: not enough distinct [{}] or diverse tuples [{}] inside PRINK to fill cluster. Check for distinct tuples: totalGammaSize() [{}] < k [{}]: {}. Check for diverse tuples: !checkDiversityBigGamma() [{}]: {}", totalGammaSize() < k ? "X" : " ", !checkDiversityBigGamma() ? "X" : " ", totalGammaSize(), k, totalGammaSize() < k, checkDiversityBigGamma(), !checkDiversityBigGamma());
                 if(suppressStrategy != 0) output.collect(suppressTuple(input));
                 removeTuple(input);
                 numSuppressedTuples.inc();
@@ -328,7 +332,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
                 if(output.size() >= l) return true;
             }
         } else {
-            // See for concept: https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1
+            // See for concept: "A Privacy Protection Model for Patient Data with Multiple sensitive Attributes" by Tamas S. Gal, Zhiyuan Chen, Aryya Gangopadhyay: https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1
             List<Tuple2<Integer, Map.Entry<Object, Long>>> numOfAppearances = new ArrayList<>();
             int counter = 0;
 
@@ -365,7 +369,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
      * @return merged input cluster
      */
     private Cluster mergeClusters(Cluster input) {
-        while(input.size() < k || input.diversity(posSensibleAttributes) < l){ // TODO check if '|| input.diversity < l' needs to be added
+        while(input.size() < k || input.diversity(posSensibleAttributes) < l){
             numMergedCluster.inc();
             float minEnlargement = Float.MAX_VALUE;
             Cluster clusterWithMinEnlargement = null;
@@ -421,6 +425,11 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
         }
 
         for(Cluster cluster: clusters){
+            // When in DEBUG log mode make an additional check if l-diversity and k-anonymity is fulfilled. This should never trigger and is only an addition protection measure to ensure and check privacy guarantees on a new job implementation
+            if(LOG.isDebugEnabled() && (cluster.diversity(posSensibleAttributes) < l || cluster.size() < k)){
+                LOG.error("Cluster diversity when generalized is lower then l or k is not high enough! l: {} diversity: {} | k: {} cluster.size: {}", l, input.diversity(posSensibleAttributes), k, cluster.size());
+                System.out.println("DEBUG-ERROR: Cluster diversity when generalized is lower then l or k is not high enough! l:" + l + " diversity:" + input.diversity(posSensibleAttributes) + " k:" + k + " cluster.size:" + cluster.size());
+            }
             numCollectedClusters.inc();
             for(Tuple tuple: cluster.getAllEntries()){
                 output.collect((OUTPUT) cluster.generalize(tuple));
@@ -566,8 +575,11 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
             if(selectedBucket.size() <= 0) buckets.remove(selectedBucketId);
 
             ArrayList<Object> bucketKeysToDelete = new ArrayList<>();
+            // The level of diversity that needs to be archived after using the current bucket (equivalent with the number of buckets already used +1). Only used when multiple sensitive attributes are present.
+            int bucketDiversityGoal = 0;
 
             for(Map.Entry<Object, ArrayList<Tuple>> bucketEntry : buckets.entrySet()){
+                bucketDiversityGoal++;
                 ArrayList<Tuple> bucket = bucketEntry.getValue();
 
                 // Find tuples with the smallest enlargement
@@ -579,12 +591,38 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
                 enlargement.sort(Comparator.comparing(o -> (o.f1)));
 
                 // Select first (k*(bucket.size()/sum)) tuples or at least 1 and move them to the new cluster
-                // TODO-later if the selection of tuples to add is to large high enlargement values can flow into the cluster. Check if other approach may have less info loss
                 if(bucket.size() > 0) {
                     double amountToAdd = Math.max((k * (bucket.size() / (float) sum)), 1);
-                    for (int i = 0; i < amountToAdd; i++) {
-                        newCluster.addEntry(enlargement.get(i).f0);
-                        bucket.remove(enlargement.get(i).f0);
+                    // If more than two sensible attributes are present the diversity inside the selected tuples of the bucket needs to be validated to ensure l-diversity
+                    if(posSensibleAttributes.length > 1){
+                        int amountAdded = 0;
+                        int enlargementPositionAlreadyUsed = 0;
+
+                        // Fulfill diversity goal by adding one tuple that reaches the needed diversity goal
+                        for (int i = 0; i < enlargement.size(); i++) {
+                            Tuple currentTuple = enlargement.get(i).f0;
+                            if(newCluster.diversityWith(posSensibleAttributes, currentTuple) >= bucketDiversityGoal){
+                                newCluster.addEntry(currentTuple);
+                                bucket.remove(currentTuple);
+                                amountAdded++;
+                                enlargementPositionAlreadyUsed = i;
+                                break;
+                            }
+                        }
+                        // Fill up the remaining tuples to reach 'amountToAdd'
+                        for (int i = 0; i < enlargement.size(); i++) {
+                            if(amountAdded >= amountToAdd) break;
+                            // Skip already used enlargementPosition
+                            if(i == enlargementPositionAlreadyUsed) continue;
+                            newCluster.addEntry(enlargement.get(i).f0);
+                            bucket.remove(enlargement.get(i).f0);
+                            amountAdded++;
+                        }
+                    } else {
+                        for (int i = 0; i < amountToAdd; i++) {
+                            newCluster.addEntry(enlargement.get(i).f0);
+                            bucket.remove(enlargement.get(i).f0);
+                        }
                     }
                 }
 
@@ -595,6 +633,15 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
             for(Object key: bucketKeysToDelete) buckets.remove(key);
 
             output.add(newCluster);
+
+            // If more than one sensitive attribute: Recalculate buckets to have an accurate minimal diverse bucket set to ensure diversity of buckets.size
+            if(posSensibleAttributes.length > 1){
+                Cluster tempHolder = new Cluster(rules, posTupleId, showInfoLoss);
+                for (ArrayList<Tuple> tupleList: buckets.values()) {
+                    tempHolder.addAllEntries(tupleList);
+                }
+                buckets = generateBucketsSensAtt(tempHolder);
+            }
 
             // Recalculate sum
             sum = 0;

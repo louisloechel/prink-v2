@@ -22,7 +22,7 @@ under the License.
 
 	<groupId>de.tu-berlin.git.prink</groupId>
 	<artifactId>prink</artifactId>
-	<version>0.1</version>
+	<version>0.5</version>
 	<packaging>jar</packaging>
 
 	<name>Privacy-Preserving Flink</name>

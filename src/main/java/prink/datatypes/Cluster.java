@@ -383,7 +383,7 @@ public class Cluster {
     }
 
     /**
-     * Returns the diversity of the cluster entries
+     * Returns the diversity of the cluster entries depending on their sensible attribute positions
      * @return cluster diversity
      */
     public int diversity(int[] posSensibleAttributes) {
@@ -411,6 +411,59 @@ public class Cluster {
                     //noinspection ComparatorCombinators - This is apparently slightly more performant then 'Comparator.comparingLong(Map.Entry::getValue)'
                     Map.Entry<Object, Long> temp = entriesCopy.stream().collect(Collectors.groupingBy(s -> (s.getField(pos).getClass().isArray() ? ((Object[]) s.getField(pos))[((Object[]) s.getField(pos)).length-1] : s.getField(pos)), Collectors.counting()))
                         .entrySet().stream().max((attEntry1, attEntry2) -> Long.compare(attEntry1.getValue(), attEntry2.getValue())).orElse(null);
+                    numOfAppearances.add(Tuple2.of(pos, temp));
+                }
+                //noinspection ComparatorCombinators - This is apparently slightly more performant then 'Comparator.comparingLong(Map.Entry::f1.getValue)'
+                Tuple2<Integer, Map.Entry<Object, Long>> mapEntryToDelete = numOfAppearances.stream().max((attEntry1, attEntry2) -> Long.compare(attEntry1.f1.getValue(), attEntry2.f1.getValue())).get();
+                // Remove all entries that have the least diverse attribute
+                ArrayList<Tuple> tuplesToDelete = new ArrayList<>(); // TODO-Later maybe use iterator to delete tuples if performance is better
+                for(Tuple tuple: entriesCopy){
+                    // adjust to find also values from arrays
+                    Object toCompare = (tuple.getField(mapEntryToDelete.f0).getClass().isArray() ? ((Object[]) tuple.getField(mapEntryToDelete.f0))[((Object[]) tuple.getField(mapEntryToDelete.f0)).length-1] : tuple.getField(mapEntryToDelete.f0));
+                    if(toCompare.equals(mapEntryToDelete.f1.getKey())){
+                        tuplesToDelete.add(tuple);
+                    }
+                }
+                entriesCopy.removeAll(tuplesToDelete);
+                numOfAppearances.clear();
+            }
+            return counter;
+        }
+    }
+
+    /**
+     * Returns the diversity of the cluster entries plus the additional input tuple depending on their sensible attribute positions
+     * @return cluster diversity
+     */
+    public int diversityWith(int[] posSensibleAttributes, Tuple input) { // TODO combine both diversity functions into one
+        if(posSensibleAttributes.length <= 0) return 0;
+        if(posSensibleAttributes.length == 1){
+            @SuppressWarnings("unchecked")
+            ArrayList<Tuple> entriesCopy = (ArrayList<Tuple>) entries.clone();
+            entriesCopy.add(input);
+            // Return the amount of different values inside the sensible attribute
+            Set<Object> output = new HashSet<>();
+            for(Tuple tuple: entriesCopy){
+                int pos = posSensibleAttributes[0];
+                // Check for arrays
+                Object sensAttributeValue = tuple.getField(pos).getClass().isArray() ? ((Object[]) tuple.getField(pos))[((Object[]) tuple.getField(pos)).length-1] : tuple.getField(pos);
+                output.add(sensAttributeValue);
+            }
+            return output.size();
+        }else{
+            // See for concept: https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1
+            @SuppressWarnings("unchecked")
+            ArrayList<Tuple> entriesCopy = (ArrayList<Tuple>) entries.clone();
+            entriesCopy.add(input);
+            List<Tuple2<Integer, Map.Entry<Object, Long>>> numOfAppearances = new ArrayList<>();
+            int counter = 0;
+
+            while (entriesCopy.size() > 0) {
+                counter++;
+                for (int pos : posSensibleAttributes) {
+                    //noinspection ComparatorCombinators - This is apparently slightly more performant then 'Comparator.comparingLong(Map.Entry::getValue)'
+                    Map.Entry<Object, Long> temp = entriesCopy.stream().collect(Collectors.groupingBy(s -> (s.getField(pos).getClass().isArray() ? ((Object[]) s.getField(pos))[((Object[]) s.getField(pos)).length-1] : s.getField(pos)), Collectors.counting()))
+                            .entrySet().stream().max((attEntry1, attEntry2) -> Long.compare(attEntry1.getValue(), attEntry2.getValue())).orElse(null);
                     numOfAppearances.add(Tuple2.of(pos, temp));
                 }
                 //noinspection ComparatorCombinators - This is apparently slightly more performant then 'Comparator.comparingLong(Map.Entry::f1.getValue)'
