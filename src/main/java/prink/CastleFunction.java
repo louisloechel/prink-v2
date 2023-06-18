@@ -200,6 +200,11 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
         if(globalTuples.size() > delta) delayConstraint(globalTuples.get(0), output);
     }
 
+    /**
+     * This function is responsible for the release of data tuples back into the data stream in a generalized form.
+     * @param input The tuple that needs to be released out of Prink
+     * @param output The collector the tuple should be released to
+     */
     @SuppressWarnings("unchecked")
     private void delayConstraint(Tuple input, Collector<OUTPUT> output) {
         Cluster clusterWithInput = getClusterContaining(input);
@@ -210,6 +215,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
         if(clusterWithInput.size() >= k && clusterWithInput.diversity(posSensibleAttributes) >= l){
             outputCluster(clusterWithInput, output);
         }else{
+            // Try to apply re-use strategy
             Cluster[] ksClustersWithInput = getClustersContaining(input);
             if(ksClustersWithInput.length > 0){
                 int random = new Random().nextInt(ksClustersWithInput.length);
@@ -221,6 +227,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
                 return;
             }
 
+            // Check if cluster is an outlier
             int m = 0;
             for(Cluster cluster: bigGamma){
                 if(clusterWithInput.size() < cluster.size()) m++;
@@ -832,14 +839,17 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
 
         if(okClusters.isEmpty()){
             if(bigGamma.size() >= beta && !minClusters.isEmpty()){
-                // Return any cluster in minValue with minValue
-                return minClusters.get(0);
+                // Return cluster in minValue with minimum size
+                //noinspection ComparatorCombinators - This is apparently slightly more performant then 'Comparator.comparingLong(Cluster::size)'
+                return minClusters.size() > 1 ? minClusters.stream().min((cluster1, cluster2) -> Integer.compare(cluster1.size(), cluster2.size())).get() : minClusters.get(0);
             } else {
                 return null;
             }
         } else {
-            // Return any cluster in okCluster with minValue
-            return okClusters.get(0);
+            // Return cluster in okCluster with minimum size
+            //noinspection ComparatorCombinators - This is apparently slightly more performant then 'Comparator.comparingLong(Cluster::size)'
+            return okClusters.size() > 1 ? okClusters.stream().min((cluster1, cluster2) -> Integer.compare(cluster1.size(), cluster2.size())).get() : okClusters.get(0);
+
         }
     }
 
