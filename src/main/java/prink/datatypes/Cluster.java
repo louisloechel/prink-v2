@@ -4,9 +4,7 @@ import org.apache.flink.api.java.tuple.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import prink.CastleFunction;
-import prink.generalizations.AggregationGeneralizer;
-import prink.generalizations.NonNumericalGeneralizer;
-import prink.generalizations.ReductionGeneralizer;
+import prink.generalizations.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -21,10 +19,11 @@ public class Cluster {
     private final int posTupleId;
 
     private final ArrayList<Tuple> entries = new ArrayList<>();
+    private final BaseGeneralizer[] generalizers;
 
-    private final AggregationGeneralizer aggreGeneralizer;
-    private final ReductionGeneralizer reductGeneralizer;
-    private final NonNumericalGeneralizer nonNumGeneralizer;
+//    private final AggregationFloatGeneralizer aggreGeneralizer;
+//    private final ReductionGeneralizer reductGeneralizer;
+//    private final NonNumericalGeneralizer nonNumGeneralizer;
 
     private static final Logger LOG = LoggerFactory.getLogger(Cluster.class);
     private float cachedInfoLoss = -1;
@@ -50,9 +49,12 @@ public class Cluster {
         this.config = rules;
         this.posTupleId = posTupleId;
         this.showInfoLoss = showInfoLoss;
-        aggreGeneralizer = new AggregationGeneralizer(config);
-        reductGeneralizer = new ReductionGeneralizer(this);
-        nonNumGeneralizer = new NonNumericalGeneralizer(config);
+
+        // Create Generalizers for Cluster using prototype pattern
+        generalizers = new BaseGeneralizer[rules.length];
+        for (int i = 0; i < rules.length; i++) {
+            generalizers[i] = rules[i].getGeneralizer().clone(i, this);
+        }
     }
 
     /**
@@ -111,7 +113,7 @@ public class Cluster {
 
         for (int i = 0; i < config.length; i++) {
             // Check if the value needs to be generalized and if there is an existing cache for it. If so return it
-            if(CACHE_INFO_LOSS_PER_ATT && singularInput && !config[i].getGeneralizationType().equals(CastleFunction.Generalization.NONE)) {
+            if(CACHE_INFO_LOSS_PER_ATT && singularInput && !(generalizers[i] instanceof NoneGeneralizer)) {
                 if(infoLossValuesRequests.size() <= i) {
                     while (infoLossValuesRequests.size() <= i){
                         // Use a LinkedHashMap to limit size of cache. Set MAX_CACHED_ENTRIES for size of cache per generalized attribute
@@ -133,27 +135,30 @@ public class Cluster {
             }
 
             // If no cache is hit calculate information loss with input
-            switch (config[i].getGeneralizationType()) {
-                case NONE:
-                    infoLossWith[i] = 0;
-                    break;
-                case REDUCTION:
-                case REDUCTION_WITHOUT_GENERALIZATION:
-                    infoLossWith[i] = reductGeneralizer.generalize(input, i).f1;
-                    break;
-                case AGGREGATION:
-                case AGGREGATION_WITHOUT_GENERALIZATION:
-                    infoLossWith[i] = aggreGeneralizer.generalize(input, i).f1;
-                    break;
-                case NONNUMERICAL:
-                case NONNUMERICAL_WITHOUT_GENERALIZATION:
-                    infoLossWith[i] = nonNumGeneralizer.generalize(input, i).f1;
-                    break;
-                default:
-                    LOG.error("informationLossWith() -> undefined transformation type: {}", config[i]);
-            }
+            infoLossWith[i] = (generalizers[i] instanceof NoneGeneralizer) ? 0 : generalizers[i].generalize(input).f1;
+
+//            switch (config[i].getGeneralizationType()) {
+//                case NONE:
+//                    infoLossWith[i] = 0;
+//                    break;
+//                case REDUCTION:
+//                case REDUCTION_WITHOUT_GENERALIZATION:
+//                    infoLossWith[i] = reductGeneralizer.generalize(input, i).f1;
+//                    break;
+//                case AGGREGATION:
+//                case AGGREGATION_WITHOUT_GENERALIZATION:
+//                    infoLossWith[i] = aggreGeneralizer.generalize(input, i).f1;
+//                    break;
+//                case NONNUMERICAL:
+//                case NONNUMERICAL_WITHOUT_GENERALIZATION:
+//                    infoLossWith[i] = nonNumGeneralizer.generalize(input, i).f1;
+//                    break;
+//                default:
+//                    LOG.error("informationLossWith() -> undefined transformation type: {}", config[i]);
+//            }
+
             // Add info loss to cache if input is singular and not of type NONE
-            if(CACHE_INFO_LOSS_PER_ATT && singularInput && !config[i].getGeneralizationType().equals(CastleFunction.Generalization.NONE)) infoLossValuesRequests.get(i).put(input.get(0).getField(i), infoLossWith[i]);
+            if(CACHE_INFO_LOSS_PER_ATT && singularInput && !(generalizers[i] instanceof NoneGeneralizer)) infoLossValuesRequests.get(i).put(input.get(0).getField(i), infoLossWith[i]);
         }
         return calcCombinedInfoLoss(infoLossWith);
     }
@@ -173,31 +178,33 @@ public class Cluster {
             LOG.error("infoLoss() called without any config/rules");
             return 0.0f;
         }
-        double[] infoLoss = new double[config.length];
+        double[] infoLoss = new double[generalizers.length];
 
-        for (int i = 0; i < config.length; i++) {
-            switch (config[i].getGeneralizationType()) {
-                case NONE:
-                    infoLoss[i] = 0;
-                    break;
-                case REDUCTION:
-                case REDUCTION_WITHOUT_GENERALIZATION:
-                    infoLoss[i] = reductGeneralizer.generalize(i).f1;
-                    break;
-                case AGGREGATION:
-                case AGGREGATION_WITHOUT_GENERALIZATION:
-                    infoLoss[i] = aggreGeneralizer.generalize(i).f1;
-                    break;
-                case NONNUMERICAL:
-                case NONNUMERICAL_WITHOUT_GENERALIZATION:
-                    infoLoss[i] = nonNumGeneralizer.generalize(i).f1;
-                    break;
-                default:
-                    LOG.error("infoLoss() -> undefined transformation type: {}", config[i]);
-            }
+        for (int i = 0; i < generalizers.length; i++) {
+            infoLoss[i] = (generalizers[i] instanceof NoneGeneralizer) ? 0 : generalizers[i].generalize().f1;
+
+//            switch (config[i].getGeneralizationType()) {
+//                case NONE:
+//                    infoLoss[i] = 0;
+//                    break;
+//                case REDUCTION:
+//                case REDUCTION_WITHOUT_GENERALIZATION:
+//                    infoLoss[i] = reductGeneralizer.generalize(i).f1;
+//                    break;
+//                case AGGREGATION:
+//                case AGGREGATION_WITHOUT_GENERALIZATION:
+//                    infoLoss[i] = aggreGeneralizer.generalize(i).f1;
+//                    break;
+//                case NONNUMERICAL:
+//                case NONNUMERICAL_WITHOUT_GENERALIZATION:
+//                    infoLoss[i] = nonNumGeneralizer.generalize(i).f1;
+//                    break;
+//                default:
+//                    LOG.error("infoLoss() -> undefined transformation type: {}", config[i]);
+//            }
         }
         float output = calcCombinedInfoLoss(infoLoss);
-        // cache infoLoss until new tuple is added
+        // Cache infoLoss until new tuple is added
         cachedInfoLoss = output;
         return output;
     }
@@ -210,14 +217,15 @@ public class Cluster {
      * @return General information loss for provided values using the clusters config
      */
     private float calcCombinedInfoLoss(double[] infoLoss) {
+        float output;
+        int numAppliedGeneralizers = 0;
         // Check what methode should be used for the general information loss (see Doc.)
         double multiplierSum = Arrays.stream(config).mapToDouble(CastleRule::getInfoLossMultiplier).sum();
-        int numAppliedGeneralizers = 0;
-        float output;
         if(Math.round(multiplierSum) == 1){
             // Multiply info loss values with provided info loss multiplier and sum together
             for (int i = 0; i < config.length; i++) {
-                if(config[i].getGeneralizationType() != CastleFunction.Generalization.NONE){
+                // Apply to all generalizer that are NOT NoneGeneralizer
+                if(!(generalizers[i] instanceof NoneGeneralizer)){
                     infoLoss[i] = config[i].getInfoLossMultiplier() * infoLoss[i];
                     numAppliedGeneralizers++;
                 }
@@ -225,8 +233,9 @@ public class Cluster {
             output = (float) Arrays.stream(infoLoss).sum();
         }else{
             // Count number of generalizers to calculate avg info loss
-            for (CastleRule castleRule : config) {
-                if (castleRule.getGeneralizationType() != CastleFunction.Generalization.NONE) {
+            for (int i = 0; i < config.length; i++) {
+                // Apply to all generalizer that are NOT NoneGeneralizer
+                if(!(generalizers[i] instanceof NoneGeneralizer)){
                     numAppliedGeneralizers++;
                 }
             }
@@ -241,7 +250,7 @@ public class Cluster {
     /**
      * Creates a generalized tuple based on the currently included data tuples in 'entries' and
      * the provided rules. Data fields that are not generalized use the provided value from the input.
-     * @param input Tuple to use for field values that are not generalized
+     * @param input Tuple to use for field values that are not generalized (See {@link NoneGeneralizer} for more info on none generalized fields)
      * @return Generalized tuple
      */
     public Tuple generalize(Tuple input) {
@@ -255,26 +264,31 @@ public class Cluster {
             return output;
         }
 
-        for (int i = 0; i < Math.min(inputArity, config.length); i++) {
-            switch (config[i].getGeneralizationType()) {
-                case REDUCTION:
-                    output.setField(reductGeneralizer.generalize(i).f0, i);
-                    break;
-                case AGGREGATION:
-                    output.setField(aggreGeneralizer.generalize(i).f0, i);
-                    break;
-                case NONNUMERICAL:
-                    output.setField(nonNumGeneralizer.generalize(i).f0, i);
-                    break;
-                case NONE:
-                case REDUCTION_WITHOUT_GENERALIZATION:
-                case AGGREGATION_WITHOUT_GENERALIZATION:
-                case NONNUMERICAL_WITHOUT_GENERALIZATION:
-                    output.setField(input.getField(i), i);
-                    break;
-                default:
-                    LOG.error("generalize -> undefined transformation type: {}", config[i]);
+        for (int i = 0; i < Math.min(inputArity, generalizers.length); i++) {
+            if(generalizers[i] instanceof NoneGeneralizer){
+                output.setField(input.getField(i), i);
+            }else{
+                output.setField(generalizers[i].generalize().f0, i);
             }
+//            switch (config[i].getGeneralizationType()) {
+//                case REDUCTION:
+//                    output.setField(reductGeneralizer.generalize(i).f0, i);
+//                    break;
+//                case AGGREGATION:
+//                    output.setField(aggreGeneralizer.generalize(i).f0, i);
+//                    break;
+//                case NONNUMERICAL:
+//                    output.setField(nonNumGeneralizer.generalize(i).f0, i);
+//                    break;
+//                case NONE:
+//                case REDUCTION_WITHOUT_GENERALIZATION:
+//                case AGGREGATION_WITHOUT_GENERALIZATION:
+//                case NONNUMERICAL_WITHOUT_GENERALIZATION:
+//                    output.setField(input.getField(i), i);
+//                    break;
+//                default:
+//                    LOG.error("generalize -> undefined transformation type: {}", config[i]);
+//            }
         }
         if(showInfoLoss) output.setField(infoLoss(),inputArity-1);
         return output;
@@ -292,73 +306,98 @@ public class Cluster {
         if(showInfoLoss) inputArity++;
         Tuple output = Tuple.newInstance(inputArity);
 
-        for (int i = 0; i < Math.min(inputArity, config.length); i++) {
-            switch (config[i].getGeneralizationType()) {
-                case REDUCTION:
-                    output.setField(reductGeneralizer.generalizeMax(i).f0, i);
-                    break;
-                case AGGREGATION:
-                    output.setField(aggreGeneralizer.generalizeMax(i).f0, i);
-                    break;
-                case NONNUMERICAL:
-                    output.setField(nonNumGeneralizer.generalizeMax(i).f0, i);
-                    break;
-                case NONE:
-                case REDUCTION_WITHOUT_GENERALIZATION:
-                case AGGREGATION_WITHOUT_GENERALIZATION:
-                case NONNUMERICAL_WITHOUT_GENERALIZATION:
-                    output.setField(input.getField(i), i);
-                    break;
-                default:
-                    LOG.error("generalizeMax -> undefined transformation type: {}", config[i]);
+        for (int i = 0; i < Math.min(inputArity, generalizers.length); i++) {
+            if(generalizers[i] instanceof NoneGeneralizer){
+                output.setField(input.getField(i), i);
+            }else{
+                output.setField(generalizers[i].generalizeMax().f0, i);
             }
+
+//            switch (config[i].getGeneralizationType()) {
+//                case REDUCTION:
+//                    output.setField(reductGeneralizer.generalizeMax(i).f0, i);
+//                    break;
+//                case AGGREGATION:
+//                    output.setField(aggreGeneralizer.generalizeMax(i).f0, i);
+//                    break;
+//                case NONNUMERICAL:
+//                    output.setField(nonNumGeneralizer.generalizeMax(i).f0, i);
+//                    break;
+//                case NONE:
+//                case REDUCTION_WITHOUT_GENERALIZATION:
+//                case AGGREGATION_WITHOUT_GENERALIZATION:
+//                case NONNUMERICAL_WITHOUT_GENERALIZATION:
+//                    output.setField(input.getField(i), i);
+//                    break;
+//                default:
+//                    LOG.error("generalizeMax -> undefined transformation type: {}", config[i]);
+//            }
         }
         if(showInfoLoss) output.setField(1.0f,inputArity-1);
         return output;
     }
 
     public void addEntry(Tuple input) {
-        if(CACHE_INFO_LOSS_PER_ATT){
-            for (Map<Object, Double> cacheMap: infoLossValuesRequests) {
-                cacheMap.clear();
-            }
-        }
-
-        if (showAddedEntry) System.out.println("Added " + input.toString() + " to cluster: " + this + " size:" + this.entries.size());
         entries.add(input);
-        // Invalidate cache of infoLoss
-        cachedInfoLoss = -1;
-        // Update the aggregation boundaries
-        aggreGeneralizer.updateAggregationBounds(input);
-        nonNumGeneralizer.updateTree(input);
+        if (showAddedEntry) System.out.println("Added " + input.toString() + " to cluster: " + this + " size:" + this.entries.size());
+
+        invalidateCache();
+
+        // Inform generalizer about the new data tuple
+        for (BaseGeneralizer generalizer: generalizers) {
+            generalizer.addTuple(input);
+        }
     }
 
     public void addAllEntries(ArrayList<Tuple> input) {
-        if(CACHE_INFO_LOSS_PER_ATT){
-            for (Map<Object, Double> cacheMap: infoLossValuesRequests) {
-                cacheMap.clear();
-            }
-        }
-
-        if (showAddedEntry) System.out.println("Added multiple (" + input.size() + ") to cluster: " + this + " size:" + this.entries.size());
         entries.addAll(input);
-        // Invalidate cache of infoLoss
-        cachedInfoLoss = -1;
-        // Update the aggregation boundaries for all inputs
-        for (Tuple in : input) {
-            aggreGeneralizer.updateAggregationBounds(in);
-            nonNumGeneralizer.updateTree(in);
+        if (showAddedEntry) System.out.println("Added multiple (" + input.size() + ") to cluster: " + this + " size:" + this.entries.size());
+
+        invalidateCache();
+
+        // Inform generalizer about the new data tuple
+        for (BaseGeneralizer generalizer: generalizers) {
+            for (Tuple inputTuple : input) {
+                generalizer.addTuple(inputTuple);
+            }
         }
     }
 
     public void removeEntry(Tuple input) {
         entries.remove(input);
         if(showRemoveEntry) System.out.println("Cluster: removeEntry -> new size:" + entries.size());
+
+        invalidateCache();
+
+        // Inform generalizer about the removed data tuples
+        for (BaseGeneralizer generalizer: generalizers) {
+            generalizer.removeTuple(input);
+        }
     }
 
-    public void removeAllEntries(ArrayList<Tuple> idTuples) {
-        entries.removeAll(idTuples);
+    public void removeAllEntries(ArrayList<Tuple> input) {
+        entries.removeAll(input);
         if(showRemoveEntry) System.out.println("Cluster: removeAllEntry -> new size:" + entries.size());
+
+        invalidateCache();
+
+        // Inform generalizer about the removed data tuples
+        for (BaseGeneralizer generalizer: generalizers) {
+            for (Tuple inputTuple : input) {
+                generalizer.removeTuple(inputTuple);
+            }
+        }
+    }
+
+    private void invalidateCache(){
+        // Invalidate cache of infoLoss per attribute if used
+        if(CACHE_INFO_LOSS_PER_ATT){
+            for (Map<Object, Double> cacheMap: infoLossValuesRequests) {
+                cacheMap.clear();
+            }
+        }
+        // Invalidate cache of infoLoss
+        cachedInfoLoss = -1;
     }
 
     public ArrayList<Tuple> getAllEntries() {
@@ -370,11 +409,11 @@ public class Cluster {
     }
 
     /**
-     * Returns the number of distinct individuals inside the cluster
-     * @return Number of distinct values for the posTupleId inside entries
+     * Returns the number of distinct individuals inside the cluster. It does NOT return the number of tuples in the array!<br>
+     * The distinction between individuals is made by attribute value at the defined <code>posTupleId</code> position.
+     * @return Number of distinct values for the <code>posTupleId</code> inside cluster entries
      */
     public int size() {
-        // TODO-later maybe find better performing solution. See: https://stackoverflow.com/questions/17973098/is-there-a-faster-way-to-extract-unique-values-from-object-collection
         Set<Object> tupleIds = new HashSet<>();
         for(final Tuple entry: entries) {
             tupleIds.add(entry.getField(posTupleId));
@@ -383,7 +422,11 @@ public class Cluster {
     }
 
     /**
-     * Returns the diversity of the cluster entries depending on their sensible attribute positions
+     * Returns the diversity of the cluster entries depending on their sensitive attribute positions.<br>
+     * Depending on the number of sensitive attribute positions different algorithms are use:<br>
+     *      0 sensitive positions = No calculation: returns 0<br>
+     *      1 sensitive position = HashSet calculation<br>
+     *   >= 2 sensitive positions = Calculation logic based on: <a href="https://mdsoar.org/bitstream/handle/11603/22463/A_Privacy_Protection_Model_for_Patient_Data_with_M.pdf?sequence=1">A privacy protection model for patient data with multiple sensitive attributes by Gal, Tamas S and Chen, Zhiyuan and Gangopadhyay, Aryya</a>
      * @return cluster diversity
      */
     public int diversity(int[] posSensibleAttributes) {
@@ -432,7 +475,8 @@ public class Cluster {
     }
 
     /**
-     * Returns the diversity of the cluster entries plus the additional input tuple depending on their sensible attribute positions
+     * Returns the diversity of the cluster entries plus the additional input tuple depending on their sensible attribute positions.<br>
+     * See {@link #diversity(int[])} for more information
      * @return cluster diversity
      */
     public int diversityWith(int[] posSensibleAttributes, Tuple input) { // TODO combine both diversity functions into one

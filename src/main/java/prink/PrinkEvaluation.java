@@ -18,6 +18,9 @@ import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import prink.datatypes.CastleRule;
+import prink.generalizations.AggregationFloatGeneralizer;
+import prink.generalizations.NonNumericalGeneralizer;
+import prink.generalizations.NoneGeneralizer;
 
 import javax.swing.*;
 import java.awt.*;
@@ -217,98 +220,98 @@ public class PrinkEvaluation {
         switch (ruleSet) {
             case 0:
                 // Paper rule set
-                rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));                                                    // key
-                rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false));                        // age: continuous
-                rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));                                                    // placeholder time
-                rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true));                                      // workclass
-                rules.add(new CastleRule(4, CastleFunction.Generalization.AGGREGATION, Tuple2.of(13492f, 1490400f), false));                // final weight
-                rules.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false));                              // education
-                rules.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false));                               // marital-status
-                rules.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false));                            // occupation
-                rules.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true));                                   // relationship
-                rules.add(new CastleRule(9, CastleFunction.Generalization.NONE, treeRace, false));                                          // race
-                rules.add(new CastleRule(10, CastleFunction.Generalization.NONE, treeSex, false));                                          // sex
-                rules.add(new CastleRule(11, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 99999f), false));                     // capital-gain
-                rules.add(new CastleRule(12, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 4356f), false));                      // capital-loss
-                rules.add(new CastleRule(13, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1f, 99f), false));                        // hours-per-week
-                rules.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false));                               // native-country
+                rules.add(new CastleRule(0, new NoneGeneralizer(), false));                                                    // key
+                rules.add(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(17f, 90f)), false));                        // age: continuous
+                rules.add(new CastleRule(2, new NoneGeneralizer(), false));                                                    // placeholder time
+                rules.add(new CastleRule(3, new NoneGeneralizer(), true));                                      // workclass
+                rules.add(new CastleRule(4, new AggregationFloatGeneralizer(Tuple2.of(13492f, 1490400f)), false));                // final weight
+                rules.add(new CastleRule(5, new NonNumericalGeneralizer(treeEducation.toArray(new String[][]{})),false));                              // education
+                rules.add(new CastleRule(6, new NonNumericalGeneralizer(treeMarital.toArray(new String[][]{})), false));                               // marital-status
+                rules.add(new CastleRule(7, new NonNumericalGeneralizer(treeOccupation.toArray(new String[][]{})), false));                            // occupation
+                rules.add(new CastleRule(8, new NoneGeneralizer(), true));                                   // relationship
+                rules.add(new CastleRule(9, new NoneGeneralizer(), false));                                          // race
+                rules.add(new CastleRule(10, new NoneGeneralizer(), false));                                          // sex
+                rules.add(new CastleRule(11, new AggregationFloatGeneralizer(Tuple2.of(0f, 99999f)), false));                     // capital-gain
+                rules.add(new CastleRule(12, new AggregationFloatGeneralizer(Tuple2.of(0f, 4356f)), false));                      // capital-loss
+                rules.add(new CastleRule(13, new AggregationFloatGeneralizer(Tuple2.of(1f, 99f)), false));                        // hours-per-week
+                rules.add(new CastleRule(14, new NoneGeneralizer(), false));                               // native-country (treeNation)
                 break;
-            case 1:
-                // Alternative rule set
-                rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
-                rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false, 1.0)); // age
-                rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
-                rules.add(new CastleRule(3, CastleFunction.Generalization.NONNUMERICAL, treeWorkclass, false)); // workclass
-                rules.add(new CastleRule(4, CastleFunction.Generalization.NONE, false)); // final weight
-                rules.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false));
-                rules.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false, 1.0));
-                rules.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false, 1.0));
-                rules.add(new CastleRule(8, CastleFunction.Generalization.NONNUMERICAL, treeRelationship, false, 1.0));
-                rules.add(new CastleRule(9, CastleFunction.Generalization.NONNUMERICAL, treeRace, false, 1.0));
-                rules.add(new CastleRule(10, CastleFunction.Generalization.NONNUMERICAL, treeSex, false, 1.0));
-                rules.add(new CastleRule(11, CastleFunction.Generalization.NONE, true));
-                rules.add(new CastleRule(12, CastleFunction.Generalization.NONE, true));
-                rules.add(new CastleRule(13, CastleFunction.Generalization.NONE, true));
-                rules.add(new CastleRule(14, CastleFunction.Generalization.NONE, false)); //NONNUMERICAL, false));
-                break;
-            case 2:
-                // Rules with info loss multiplier (high multiplier for non-numerical, low for aggregation)
-                rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
-                rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false, 0.05)); // age
-                rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
-                rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
-                rules.add(new CastleRule(4, CastleFunction.Generalization.AGGREGATION, Tuple2.of(13492f, 1490400f), false, 0.05)); // final weight
-                rules.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false, 0.2));
-                rules.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false, 0.2));
-                rules.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false, 0.2));
-                rules.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
-                rules.add(new CastleRule(9, CastleFunction.Generalization.NONE, treeRace, false)); // race
-                rules.add(new CastleRule(10, CastleFunction.Generalization.NONE, treeSex, false)); // sex
-                rules.add(new CastleRule(11, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 99999f), false, 0.05)); // capital-gain
-                rules.add(new CastleRule(12, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 4356f), false, 0.05)); // capital-loss
-                rules.add(new CastleRule(13, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1f, 99f), false, 0.05)); // hours per week
-                rules.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false, 0.2)); // nation
-//                rules.add(new CastleRule(15, CastleFunction.Generalization.NONE, false)); // visualizer placeholder blank
-//                rules.add(new CastleRule(16, CastleFunction.Generalization.NONE, false)); // visualizer placeholder blank
-                break;
-            case 3:
-                // Rules with info loss multiplier (low multiplier for non-numerical, high for aggregation)
-                rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
-                rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false, 0.16)); // age
-                rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
-                rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
-                rules.add(new CastleRule(4, CastleFunction.Generalization.AGGREGATION, Tuple2.of(13492f, 1490400f), false, 0.16)); // final weight
-                rules.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false, 0.05));
-                rules.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false, 0.05));
-                rules.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false, 0.05));
-                rules.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
-                rules.add(new CastleRule(9, CastleFunction.Generalization.NONE, treeRace, false)); // race
-                rules.add(new CastleRule(10, CastleFunction.Generalization.NONE, treeSex, false)); // sex
-                rules.add(new CastleRule(11, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 99999f), false, 0.16)); // capital-gain
-                rules.add(new CastleRule(12, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 4356f), false, 0.16)); // capital-loss
-                rules.add(new CastleRule(13, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1f, 99f), false, 0.16)); // hours per week
-                rules.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false, 0.05)); // nation
-//                rules.add(new CastleRule(15, CastleFunction.Generalization.NONE, false)); // visualizer placeholder blank
-//                rules.add(new CastleRule(16, CastleFunction.Generalization.NONE, false)); // visualizer placeholder blank
-                break;
-            case 4:
-                // Paper rule set, but with only one sensitive attribute
-                rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));                                                    // key
-                rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false));                        // age: continuous
-                rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));                                                    // placeholder time
-                rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true));                                      // workclass
-                rules.add(new CastleRule(4, CastleFunction.Generalization.AGGREGATION, Tuple2.of(13492f, 1490400f), false));                // final weight
-                rules.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false));                              // education
-                rules.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false));                               // marital-status
-                rules.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false));                            // occupation
-                rules.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, false));                                   // relationship
-                rules.add(new CastleRule(9, CastleFunction.Generalization.NONE, treeRace, false));                                          // race
-                rules.add(new CastleRule(10, CastleFunction.Generalization.NONE, treeSex, false));                                          // sex
-                rules.add(new CastleRule(11, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 99999f), false));                     // capital-gain
-                rules.add(new CastleRule(12, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 4356f), false));                      // capital-loss
-                rules.add(new CastleRule(13, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1f, 99f), false));                        // hours-per-week
-                rules.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false));                               // native-country
-                break;
+//            case 1:
+//                // Alternative rule set
+//                rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
+//                rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false, 1.0)); // age
+//                rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
+//                rules.add(new CastleRule(3, CastleFunction.Generalization.NONNUMERICAL, treeWorkclass, false)); // workclass
+//                rules.add(new CastleRule(4, CastleFunction.Generalization.NONE, false)); // final weight
+//                rules.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false));
+//                rules.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false, 1.0));
+//                rules.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false, 1.0));
+//                rules.add(new CastleRule(8, CastleFunction.Generalization.NONNUMERICAL, treeRelationship, false, 1.0));
+//                rules.add(new CastleRule(9, CastleFunction.Generalization.NONNUMERICAL, treeRace, false, 1.0));
+//                rules.add(new CastleRule(10, CastleFunction.Generalization.NONNUMERICAL, treeSex, false, 1.0));
+//                rules.add(new CastleRule(11, CastleFunction.Generalization.NONE, true));
+//                rules.add(new CastleRule(12, CastleFunction.Generalization.NONE, true));
+//                rules.add(new CastleRule(13, CastleFunction.Generalization.NONE, true));
+//                rules.add(new CastleRule(14, CastleFunction.Generalization.NONE, false)); //NONNUMERICAL, false));
+//                break;
+//            case 2:
+//                // Rules with info loss multiplier (high multiplier for non-numerical, low for aggregation)
+//                rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
+//                rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false, 0.05)); // age
+//                rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
+//                rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
+//                rules.add(new CastleRule(4, CastleFunction.Generalization.AGGREGATION, Tuple2.of(13492f, 1490400f), false, 0.05)); // final weight
+//                rules.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false, 0.2));
+//                rules.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false, 0.2));
+//                rules.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false, 0.2));
+//                rules.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
+//                rules.add(new CastleRule(9, CastleFunction.Generalization.NONE, treeRace, false)); // race
+//                rules.add(new CastleRule(10, CastleFunction.Generalization.NONE, treeSex, false)); // sex
+//                rules.add(new CastleRule(11, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 99999f), false, 0.05)); // capital-gain
+//                rules.add(new CastleRule(12, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 4356f), false, 0.05)); // capital-loss
+//                rules.add(new CastleRule(13, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1f, 99f), false, 0.05)); // hours per week
+//                rules.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false, 0.2)); // nation
+////                rules.add(new CastleRule(15, CastleFunction.Generalization.NONE, false)); // visualizer placeholder blank
+////                rules.add(new CastleRule(16, CastleFunction.Generalization.NONE, false)); // visualizer placeholder blank
+//                break;
+//            case 3:
+//                // Rules with info loss multiplier (low multiplier for non-numerical, high for aggregation)
+//                rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
+//                rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false, 0.16)); // age
+//                rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
+//                rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
+//                rules.add(new CastleRule(4, CastleFunction.Generalization.AGGREGATION, Tuple2.of(13492f, 1490400f), false, 0.16)); // final weight
+//                rules.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false, 0.05));
+//                rules.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false, 0.05));
+//                rules.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false, 0.05));
+//                rules.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
+//                rules.add(new CastleRule(9, CastleFunction.Generalization.NONE, treeRace, false)); // race
+//                rules.add(new CastleRule(10, CastleFunction.Generalization.NONE, treeSex, false)); // sex
+//                rules.add(new CastleRule(11, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 99999f), false, 0.16)); // capital-gain
+//                rules.add(new CastleRule(12, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 4356f), false, 0.16)); // capital-loss
+//                rules.add(new CastleRule(13, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1f, 99f), false, 0.16)); // hours per week
+//                rules.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false, 0.05)); // nation
+////                rules.add(new CastleRule(15, CastleFunction.Generalization.NONE, false)); // visualizer placeholder blank
+////                rules.add(new CastleRule(16, CastleFunction.Generalization.NONE, false)); // visualizer placeholder blank
+//                break;
+//            case 4:
+//                // Paper rule set, but with only one sensitive attribute
+//                rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));                                                    // key
+//                rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false));                        // age: continuous
+//                rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));                                                    // placeholder time
+//                rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true));                                      // workclass
+//                rules.add(new CastleRule(4, CastleFunction.Generalization.AGGREGATION, Tuple2.of(13492f, 1490400f), false));                // final weight
+//                rules.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false));                              // education
+//                rules.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false));                               // marital-status
+//                rules.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false));                            // occupation
+//                rules.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, false));                                   // relationship
+//                rules.add(new CastleRule(9, CastleFunction.Generalization.NONE, treeRace, false));                                          // race
+//                rules.add(new CastleRule(10, CastleFunction.Generalization.NONE, treeSex, false));                                          // sex
+//                rules.add(new CastleRule(11, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 99999f), false));                     // capital-gain
+//                rules.add(new CastleRule(12, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 4356f), false));                      // capital-loss
+//                rules.add(new CastleRule(13, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1f, 99f), false));                        // hours-per-week
+//                rules.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false));                               // native-country
+//                break;
         }
 
         // Set up streaming execution environment
@@ -316,7 +319,8 @@ public class PrinkEvaluation {
 
         DataStream<Tuple17<Object,Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> sourceData;
         if(local){
-            final FileSource<String> source = FileSource.forRecordStreamFormat(new TextLineInputFormat(), new Path("C:/Users/Philip/Desktop/Arbeit/Projects/PRINK/data/adult_big_clean.csv")).build(); // adult_small_clean.csv")).build(); // adult_small_clean
+            final FileSource<String> source = FileSource.forRecordStreamFormat(new TextLineInputFormat(), new Path("C:/Users/Groneberg/Desktop/Studium/AAA_Master/5_Masterarbeit/Repos/prink_github/src/main/resources/adult_big_clean.csv")).build(); // adult_small_clean.csv")).build(); // adult_small_clean
+//            final FileSource<String> source = FileSource.forRecordStreamFormat(new TextLineInputFormat(), new Path("adult_big_clean.csv")).build(); // adult_small_clean
             // Start the data generator and arrange for watermarking
             sourceData = env.fromSource(source, WatermarkStrategy.noWatermarks(), "file-source").map(new StringToTuple());
         }else{
@@ -413,7 +417,7 @@ public class PrinkEvaluation {
         @Override
         public void invoke(INPUT input, SinkFunction.Context context) {
 
-            System.out.println(description + input);
+//            System.out.println(description + input);
 
             // Visualization
             if (input.getField(15) != null && input.getField(16) != null && input.getField(1) != null && input.getField(13) != null){

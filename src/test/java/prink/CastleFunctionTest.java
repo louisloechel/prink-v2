@@ -16,6 +16,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import prink.datatypes.CastleRule;
+import prink.generalizations.AggregationFloatGeneralizer;
+import prink.generalizations.NoneGeneralizer;
 
 import java.util.*;
 import java.util.stream.Stream;
@@ -54,10 +56,10 @@ public class CastleFunctionTest {
 
         try (KeyedBroadcastOperatorTestHarness<Long, Tuple4<Long, Integer, Integer, Integer>, CastleRule, Tuple4<Object, Object,Object, Object>> harness = ProcessFunctionTestHarnesses.forKeyedBroadcastProcessFunction(castleFunction, tuple -> tuple.getField(0), Types.LONG, ruleStateDescriptor)) {
 
-            harness.processBroadcastElement(new CastleRule(0, CastleFunction.Generalization.NONE, false), 1);
-            harness.processBroadcastElement(new CastleRule(1, CastleFunction.Generalization.NONE, false), 1);
-            harness.processBroadcastElement(new CastleRule(2, CastleFunction.Generalization.NONE, false), 1);
-            harness.processBroadcastElement(new CastleRule(3, CastleFunction.Generalization.NONE, false), 1);
+            harness.processBroadcastElement(new CastleRule(0, new NoneGeneralizer(), false), 1);
+            harness.processBroadcastElement(new CastleRule(1, new NoneGeneralizer(), false), 1);
+            harness.processBroadcastElement(new CastleRule(2, new NoneGeneralizer(), false), 1);
+            harness.processBroadcastElement(new CastleRule(3, new NoneGeneralizer(), false), 1);
 
             for (StreamRecord<Tuple4<Long, Integer, Integer, Integer>> temp: testInputs) {
                 harness.processElement(temp);
@@ -95,9 +97,9 @@ public class CastleFunctionTest {
 
         try (KeyedBroadcastOperatorTestHarness<Long, Tuple4<Long, Float, Float, Integer>, CastleRule, Tuple4<Object, Object,Object, Object>> harness = ProcessFunctionTestHarnesses.forKeyedBroadcastProcessFunction(castleFunction, tuple -> tuple.getField(0), Types.LONG, ruleStateDescriptor)) {
 
-            harness.processBroadcastElement(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 100f),false), 0);
-            harness.processBroadcastElement(new CastleRule(2, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1000f, 2000f),false), 0);
-            harness.processBroadcastElement(new CastleRule(3, CastleFunction.Generalization.NONE,true), 0);
+            harness.processBroadcastElement(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(0f, 100f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(2, new AggregationFloatGeneralizer(Tuple2.of(1000f, 2000f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(3, new NoneGeneralizer(),true), 0);
 
             for (StreamRecord<Tuple4<Long, Float, Float, Integer>> temp: testInputs) {
                 harness.processElement(temp);
@@ -130,14 +132,14 @@ public class CastleFunctionTest {
         HashMap<String,ArrayList<CastleRule>> ruleSets = new HashMap<>();
 
         ArrayList<CastleRule> twoAggregationOneSensibleAtt = new ArrayList<>();
-        twoAggregationOneSensibleAtt.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 500f),false));
-        twoAggregationOneSensibleAtt.add(new CastleRule(2, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 500f),false));
-        twoAggregationOneSensibleAtt.add(new CastleRule(3, CastleFunction.Generalization.NONE,true));
+        twoAggregationOneSensibleAtt.add(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(0f, 500f)),false));
+        twoAggregationOneSensibleAtt.add(new CastleRule(2, new AggregationFloatGeneralizer(Tuple2.of(0f, 500f)),false));
+        twoAggregationOneSensibleAtt.add(new CastleRule(3, new NoneGeneralizer(),true));
 
         ArrayList<CastleRule> twoAggregationTwoSensibleAtt = new ArrayList<>();
-        twoAggregationTwoSensibleAtt.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 500f),false));
-        twoAggregationTwoSensibleAtt.add(new CastleRule(2, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 500f),true));
-        twoAggregationTwoSensibleAtt.add(new CastleRule(3, CastleFunction.Generalization.NONE,true));
+        twoAggregationTwoSensibleAtt.add(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(0f, 500f)),false));
+        twoAggregationTwoSensibleAtt.add(new CastleRule(2, new AggregationFloatGeneralizer(Tuple2.of(0f, 500f)),true));
+        twoAggregationTwoSensibleAtt.add(new CastleRule(3, new NoneGeneralizer(),true));
 
 
         ruleSets.put("Two Aggregation One Sensible Attribute", twoAggregationOneSensibleAtt);
@@ -251,9 +253,9 @@ public class CastleFunctionTest {
 
         try (KeyedBroadcastOperatorTestHarness<Long, Tuple4<Long, Float, Float, Integer>, CastleRule, Tuple4<Object, Object,Object, Object>> harness = ProcessFunctionTestHarnesses.forKeyedBroadcastProcessFunction(castleFunction, tuple -> tuple.getField(0), Types.LONG, ruleStateDescriptor)) {
 
-            harness.processBroadcastElement(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 20f),false), 0);
-            harness.processBroadcastElement(new CastleRule(2, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 30f),false), 0);
-            harness.processBroadcastElement(new CastleRule(3, CastleFunction.Generalization.NONE,true), 0);
+            harness.processBroadcastElement(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(0f, 20f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(2, new AggregationFloatGeneralizer(Tuple2.of(0f, 30f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(3, new NoneGeneralizer(),true), 0);
 
             for (StreamRecord<Tuple4<Long, Float, Float, Integer>> temp: testInputs) {
                 harness.processElement(temp);
@@ -288,9 +290,9 @@ public class CastleFunctionTest {
 
         try (KeyedBroadcastOperatorTestHarness<Long, Tuple4<Long, Float, Float, Integer>, CastleRule, Tuple4<Object, Object,Object, Object>> harness = ProcessFunctionTestHarnesses.forKeyedBroadcastProcessFunction(castleFunction, tuple -> tuple.getField(0), Types.LONG, ruleStateDescriptor)) {
 
-            harness.processBroadcastElement(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 20f),false), 0);
-            harness.processBroadcastElement(new CastleRule(2, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 30f),false), 0);
-            harness.processBroadcastElement(new CastleRule(3, CastleFunction.Generalization.NONE,true), 0);
+            harness.processBroadcastElement(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(0f, 20f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(2, new AggregationFloatGeneralizer(Tuple2.of(0f, 30f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(3, new NoneGeneralizer(),true), 0);
 
             for (StreamRecord<Tuple4<Long, Float, Float, Integer>> temp: testInputs) {
                 harness.processElement(temp);
@@ -322,10 +324,10 @@ public class CastleFunctionTest {
 
         try (KeyedBroadcastOperatorTestHarness<Long, Tuple4<Long, Float, Float, Integer>, CastleRule, Tuple4<Object, Object,Object, Object>> harness = ProcessFunctionTestHarnesses.forKeyedBroadcastProcessFunction(castleFunction, tuple -> tuple.getField(0), Types.LONG, ruleStateDescriptor)) {
 
-            harness.processBroadcastElement(new CastleRule(0, CastleFunction.Generalization.NONE,false), 0);
-            harness.processBroadcastElement(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 20f),false), 0);
-            harness.processBroadcastElement(new CastleRule(2, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 30f),false), 0);
-            harness.processBroadcastElement(new CastleRule(3, CastleFunction.Generalization.NONE,true), 0);
+            harness.processBroadcastElement(new CastleRule(0, new NoneGeneralizer(),false), 0);
+            harness.processBroadcastElement(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(0f, 20f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(2, new AggregationFloatGeneralizer(Tuple2.of(0f, 30f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(3, new NoneGeneralizer(),true), 0);
 
             for (StreamRecord<Tuple4<Long, Float, Float, Integer>> temp: testInputs) {
                 harness.processElement(temp);
@@ -378,10 +380,10 @@ public class CastleFunctionTest {
 
             harness.setup(TypeInformation.of(new TypeHint<Tuple4<Object, Object, Object, Object>>() {}).createSerializer(new ExecutionConfig()));
 
-            harness.processBroadcastElement(new CastleRule(0, CastleFunction.Generalization.NONE,false), 0);
-            harness.processBroadcastElement(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 20f),false), 0);
-            harness.processBroadcastElement(new CastleRule(2, CastleFunction.Generalization.NONE, Tuple2.of(0f, 30f),false), 0);
-            harness.processBroadcastElement(new CastleRule(3, CastleFunction.Generalization.NONE,true), 0);
+            harness.processBroadcastElement(new CastleRule(0, new NoneGeneralizer(),false), 0);
+            harness.processBroadcastElement(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(0f, 20f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(2, new NoneGeneralizer(),false), 0);
+            harness.processBroadcastElement(new CastleRule(3, new NoneGeneralizer(),true), 0);
 
             for (StreamRecord<Tuple4<Long, Float, Float, Integer>> temp: testInputs) {
                 harness.processElement(temp);
@@ -426,10 +428,10 @@ public class CastleFunctionTest {
 
             harness.setup(TypeInformation.of(new TypeHint<Tuple4<Object, Object, Object, Object>>() {}).createSerializer(new ExecutionConfig()));
 
-            harness.processBroadcastElement(new CastleRule(0, CastleFunction.Generalization.NONE,false), 0);
-            harness.processBroadcastElement(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 20f),false), 0);
-            harness.processBroadcastElement(new CastleRule(2, CastleFunction.Generalization.NONE, Tuple2.of(0f, 30f),false), 0);
-            harness.processBroadcastElement(new CastleRule(3, CastleFunction.Generalization.NONE,true), 0);
+            harness.processBroadcastElement(new CastleRule(0, new NoneGeneralizer(),false), 0);
+            harness.processBroadcastElement(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(0f, 20f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(2, new NoneGeneralizer(),false), 0);
+            harness.processBroadcastElement(new CastleRule(3, new NoneGeneralizer(),true), 0);
 
             for (StreamRecord<Tuple4<Long, Float, Float, Integer>> temp: testInputs) {
                 harness.processElement(temp);
@@ -470,10 +472,10 @@ public class CastleFunctionTest {
 
             harness.setup(TypeInformation.of(new TypeHint<Tuple4<Object, Object, Object, Object>>() {}).createSerializer(new ExecutionConfig()));
 
-            harness.processBroadcastElement(new CastleRule(0, CastleFunction.Generalization.NONE,false), 0);
-            harness.processBroadcastElement(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 20f),false), 0);
-            harness.processBroadcastElement(new CastleRule(2, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 30f),false), 0);
-            harness.processBroadcastElement(new CastleRule(3, CastleFunction.Generalization.NONE,true), 0);
+            harness.processBroadcastElement(new CastleRule(0, new NoneGeneralizer(),false), 0);
+            harness.processBroadcastElement(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(0f, 20f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(2, new AggregationFloatGeneralizer(Tuple2.of(0f, 30f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(3, new NoneGeneralizer(),true), 0);
 
             for (StreamRecord<Tuple4<Long, Float, Float, Integer>> temp: testInputs) {
                 harness.processElement(temp);
@@ -518,10 +520,10 @@ public class CastleFunctionTest {
 
             harness.setup(TypeInformation.of(new TypeHint<Tuple4<Object, Object, Object, Object>>() {}).createSerializer(new ExecutionConfig()));
 
-            harness.processBroadcastElement(new CastleRule(0, CastleFunction.Generalization.NONE,false), 0);
-            harness.processBroadcastElement(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(-10f, 20f),false), 0);
-            harness.processBroadcastElement(new CastleRule(2, null, Tuple2.of(0f, 50f),false), 0);
-            harness.processBroadcastElement(new CastleRule(3, CastleFunction.Generalization.NONE,true), 0);
+            harness.processBroadcastElement(new CastleRule(0, new NoneGeneralizer(),false), 0);
+            harness.processBroadcastElement(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(-10f, 20f)),false), 0);
+            harness.processBroadcastElement(new CastleRule(2, null,false), 0);
+            harness.processBroadcastElement(new CastleRule(3, new NoneGeneralizer(),true), 0);
 
             for (StreamRecord<Tuple4<Long, Float, Float, Integer>> temp: testInputs) {
                 harness.processElement(temp);

@@ -24,6 +24,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import prink.datatypes.CastleRule;
+import prink.generalizations.AggregationFloatGeneralizer;
+import prink.generalizations.NonNumericalGeneralizer;
+import prink.generalizations.NoneGeneralizer;
 
 import java.io.File;
 import java.io.IOException;
@@ -196,21 +199,21 @@ class CastleFunctionJobTest {
         treeNation.add(new String[]{"Outlying-US(Guam-USVI-etc)"});
 
         ArrayList<CastleRule> rulesCombi1 = new ArrayList<>();
-        rulesCombi1.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
-        rulesCombi1.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f, 90f), false)); // age
-        rulesCombi1.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
-        rulesCombi1.add(new CastleRule(3, CastleFunction.Generalization.NONE, treeWorkclass, true)); // workclass
-        rulesCombi1.add(new CastleRule(4, CastleFunction.Generalization.AGGREGATION, Tuple2.of(13492f, 1490400f), false, 0.05)); // final weight
-        rulesCombi1.add(new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEducation,false));
-        rulesCombi1.add(new CastleRule(6, CastleFunction.Generalization.NONNUMERICAL, treeMarital, false));
-        rulesCombi1.add(new CastleRule(7, CastleFunction.Generalization.NONNUMERICAL, treeOccupation, false));
-        rulesCombi1.add(new CastleRule(8, CastleFunction.Generalization.NONE, treeRelationship, true)); // relationship
-        rulesCombi1.add(new CastleRule(9, CastleFunction.Generalization.NONE, treeRace, false)); // race
-        rulesCombi1.add(new CastleRule(10, CastleFunction.Generalization.NONE, treeSex, false)); // sex
-        rulesCombi1.add(new CastleRule(11, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 99999f), false)); // capital-gain
-        rulesCombi1.add(new CastleRule(12, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f, 4356f), false)); // capital-loss
-        rulesCombi1.add(new CastleRule(13, CastleFunction.Generalization.AGGREGATION, Tuple2.of(1f, 99f), false)); // hours per week
-        rulesCombi1.add(new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false)); // nation
+        rulesCombi1.add(new CastleRule(0, new NoneGeneralizer(), false));
+        rulesCombi1.add(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(17f, 90f)), false)); // age
+        rulesCombi1.add(new CastleRule(2, new NoneGeneralizer(), false));
+        rulesCombi1.add(new CastleRule(3, new NoneGeneralizer(), true)); // workclass
+        rulesCombi1.add(new CastleRule(4, new AggregationFloatGeneralizer(Tuple2.of(13492f, 1490400f)), false, 0.05)); // final weight
+        rulesCombi1.add(new CastleRule(5, new NonNumericalGeneralizer(treeEducation.toArray(new String[][]{})),false));
+        rulesCombi1.add(new CastleRule(6, new NonNumericalGeneralizer(treeMarital.toArray(new String[][]{})), false));
+        rulesCombi1.add(new CastleRule(7, new NonNumericalGeneralizer(treeOccupation.toArray(new String[][]{})), false));
+        rulesCombi1.add(new CastleRule(8, new NoneGeneralizer(), true)); // relationship
+        rulesCombi1.add(new CastleRule(9, new NoneGeneralizer(), false)); // race
+        rulesCombi1.add(new CastleRule(10, new NoneGeneralizer(), false)); // sex
+        rulesCombi1.add(new CastleRule(11, new AggregationFloatGeneralizer(Tuple2.of(0f, 99999f)), false)); // capital-gain
+        rulesCombi1.add(new CastleRule(12, new AggregationFloatGeneralizer(Tuple2.of(0f, 4356f)), false)); // capital-loss
+        rulesCombi1.add(new CastleRule(13, new AggregationFloatGeneralizer(Tuple2.of(1f, 99f)), false)); // hours per week
+        rulesCombi1.add(new CastleRule(14, new NonNumericalGeneralizer(treeNation.toArray(new String[][]{})), false)); // nation
 //        rulesCombi1.add(new CastleRule(14, CastleFunction.Generalization.NONE, false)); // nation
 
         HashMap<String,ArrayList<CastleRule>> ruleSets = new HashMap<>();

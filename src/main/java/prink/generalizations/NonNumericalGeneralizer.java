@@ -2,94 +2,108 @@ package prink.generalizations;
 
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import prink.CastleFunction;
-import prink.datatypes.CastleRule;
+import prink.datatypes.Cluster;
 import prink.datatypes.TreeNode;
 
-import java.util.HashMap;
 import java.util.List;
 
 public class NonNumericalGeneralizer implements BaseGeneralizer{
 
-    private final CastleRule[] config;
-    private final String ROOT_NAME = "<blank>";
-    private final HashMap<Integer, TreeNode> trees = new HashMap<>();
+    private final int position;
+//    private final Cluster owningCluster;
 
-    private static final Logger LOG = LoggerFactory.getLogger(NonNumericalGeneralizer.class);
+    private final String[][] treeDefinition;
+    private final String rootName;
+    private final TreeNode tree;
 
     /**
-     * Constructor of the Non-Numerical Generalizer
-     * @param rules CastleRules to follow when generalizing
+     * The constructor of the NonNumericalGeneralizer
+     * @param treeDefinition the definition of the domain generalization tree
+     * @param rootName the name of the root tree node
      */
-    public NonNumericalGeneralizer(CastleRule[] rules){
-        this.config = rules;
-        // Add rule defined trees to the generalizer
-        for(int i = 0; i < rules.length; i++){
-            if(rules[i].getGeneralizationType() == CastleFunction.Generalization.NONNUMERICAL && rules[i].getTreeEntries() != null){
-                TreeNode tree = new TreeNode(ROOT_NAME);
-                for(String[] treeEntry: rules[i].getTreeEntries()){
-                    tree.addByArray(treeEntry, true);
-                }
-                tree.removeTempNodes();
-                trees.put(i, tree);
-            }
+    public NonNumericalGeneralizer(String[][] treeDefinition, String rootName){
+        this.position = -1;
+//        this.owningCluster = new Cluster(null, 0, false);
+
+        this.rootName = rootName;
+        this.treeDefinition = treeDefinition;
+        // Do not initialize the tree since this one is only used as prototype, only store the the treeDefinition for the real tree initialization
+        this.tree = new TreeNode(rootName);
+    }
+
+    /**
+     * The constructor of the NonNumericalGeneralizer
+     * @param treeDefinition the definition of the domain generalization tree
+     */
+    public NonNumericalGeneralizer(String[][] treeDefinition){
+        this(treeDefinition, "<ROOT>");
+    }
+
+    private NonNumericalGeneralizer(String[][] treeDefinition, String rootName, int position){
+        this.position = position;
+//        this.owningCluster = owningCluster;
+
+        this.rootName = rootName;
+        this.treeDefinition = treeDefinition;
+        this.tree = new TreeNode(rootName);
+
+        // Initialize tree using treeDefinition
+        for(String[] treeEntry: treeDefinition){
+            tree.addByArray(treeEntry, true);
         }
+        tree.removeTempNodes();
     }
 
     @Override
-    public Tuple2<String, Float> generalize(int pos) {
-        if(!trees.containsKey(pos)){
-            LOG.error("Try to generalize with a non existing tree! Tree-Key: {} Existing Tree-Keys: {}", pos, trees.keySet());
-            return Tuple2.of("ERROR: Missing tree for position:" + pos, 1.0f);
-        }
-        return trees.get(pos).getGeneralization(false);
+    public NonNumericalGeneralizer clone(int position, Cluster owningCluster) {
+        return new NonNumericalGeneralizer(treeDefinition, rootName, position);
     }
 
     @Override
-    public Tuple2<String, Float> generalize(List<Tuple> withTuples, int pos) {
-        if(!trees.containsKey(pos)){
-            LOG.error("Try to generalize with a non existing tree! Tree-Key: {} Existing Tree-Keys: {}", pos, trees.keySet());
-            return Tuple2.of("ERROR: Missing tree for position:" + pos, 9999.0f);
-        }
+    public Tuple2<String, Float> generalize() {
+        return tree.getGeneralization(false);
+    }
 
+    @Override
+    public Tuple2<String, Float> generalize(List<Tuple> withTuples) {
         // Add withTuples temporary to the tree
         for(Tuple input: withTuples){
-            if(input.getField(pos).getClass().isArray()){
-                trees.get(pos).addByArray(input.getField(pos), true);
+            if(input.getField(position).getClass().isArray()){
+                tree.addByArray(input.getField(position), true);
             }else{
-                trees.get(pos).addByName(input.getField(pos), true);
+                tree.addByName(input.getField(position), true);
             }
         }
         // Calculate generalization
-        Tuple2<String, Float> output = trees.get(pos).getGeneralization(true);
+        Tuple2<String, Float> output = tree.getGeneralization(true);
 
         // Remove temporary nodes
-        trees.get(pos).removeTempNodes();
+        tree.removeTempNodes();
 
         return output;
     }
 
     @Override
-    public Tuple2<String, Float> generalizeMax(int pos) {
-        return Tuple2.of(ROOT_NAME, 1.0f);
+    public Tuple2<String, Float> generalizeMax() {
+        return Tuple2.of(rootName, 1.0f);
     }
 
-    public void updateTree(Tuple input) {
-        for(int i = 0; i < config.length; i++){
-            if(config[i].getGeneralizationType() == CastleFunction.Generalization.NONNUMERICAL){
-                // If attribute has no existing tree create a new one
-                if(!trees.containsKey(i)) {
-                    trees.put(i, new TreeNode("<blank>"));
-                }
-                // Add new values to tree
-                if(input.getField(i).getClass().isArray()){
-                    trees.get(i).addByArray(input.getField(i), false);
-                }else{
-                    trees.get(i).addByName(input.getField(i), false);
-                }
-            }
+    @Override
+    public void addTuple(Tuple newTuple) {
+        // Update the tree by adding new values to tree
+        if(newTuple.getField(position).getClass().isArray()){
+            tree.addByArray(newTuple.getField(position), false);
+        }else{
+            tree.addByName(newTuple.getField(position), false);
         }
+    }
+
+    /**
+     * The removal of tuple is currently not supported for the NonNumericalGeneralizer
+     * @param removedTuple the removed data tuple
+     */
+    @Override
+    public void removeTuple(Tuple removedTuple) {
+
     }
 }

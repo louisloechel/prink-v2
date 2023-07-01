@@ -19,6 +19,10 @@ import prink.CastleFunction;
 import prink.datatypes.CastleRule;
 import examples.datatypes.TaxiFare;
 import examples.sources.TaxiFareGenerator;
+import prink.generalizations.AggregationFloatGeneralizer;
+import prink.generalizations.NonNumericalGeneralizer;
+import prink.generalizations.NoneGeneralizer;
+import prink.generalizations.ReductionGeneralizer;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -91,14 +95,23 @@ public class PrinkInformationReduction {
 
         // Broadcast the rules and create the broadcast state
         ArrayList<CastleRule> rules = new ArrayList<>();
-        rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
-        rules.add(new CastleRule(1, CastleFunction.Generalization.REDUCTION, false,0.8));
-        rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
-        rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, false));
-        rules.add(new CastleRule(4, CastleFunction.Generalization.NONNUMERICAL, treeEntries, true, 0.1));
-        rules.add(new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f), false, 0.1));
-        rules.add(new CastleRule(6, CastleFunction.Generalization.NONE, Tuple2.of(0f,200f), true));
-        rules.add(new CastleRule(7, CastleFunction.Generalization.NONE, Tuple2.of(10f,500f), true));
+//        rules.add(new CastleRule(0, CastleFunction.Generalization.NONE, false));
+//        rules.add(new CastleRule(1, CastleFunction.Generalization.REDUCTION, false,0.8));
+//        rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
+//        rules.add(new CastleRule(3, CastleFunction.Generalization.NONE, false));
+//        rules.add(new CastleRule(4, CastleFunction.Generalization.NONNUMERICAL, treeEntries, true, 0.1));
+//        rules.add(new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f), false, 0.1));
+//        rules.add(new CastleRule(6, CastleFunction.Generalization.NONE, Tuple2.of(0f,200f), true));
+//        rules.add(new CastleRule(7, CastleFunction.Generalization.NONE, Tuple2.of(10f,500f), true));
+
+        rules.add(new CastleRule(0, new NoneGeneralizer(), false));
+        rules.add(new CastleRule(1, new ReductionGeneralizer(), false,0.8));
+        rules.add(new CastleRule(2, new NoneGeneralizer(), false));
+        rules.add(new CastleRule(3, new NoneGeneralizer(), false));
+        rules.add(new CastleRule(4, new NonNumericalGeneralizer(treeEntries.toArray(new String[][]{})), true, 0.1));
+        rules.add(new CastleRule(5, new AggregationFloatGeneralizer(Tuple2.of(0f,100f)), false, 0.1));
+        rules.add(new CastleRule(6, new NoneGeneralizer(), true));
+        rules.add(new CastleRule(7, new NoneGeneralizer(), true));
 
         BroadcastStream<CastleRule> ruleBroadcastStream = env.fromCollection(rules)
                 .broadcast(ruleStateDescriptor);

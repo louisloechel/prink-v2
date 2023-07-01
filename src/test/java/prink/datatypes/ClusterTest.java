@@ -1,12 +1,15 @@
 package prink.datatypes;
 
 import org.apache.flink.api.java.tuple.Tuple;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import prink.CastleFunction;
+import prink.generalizations.AggregationFloatGeneralizer;
+import prink.generalizations.NoneGeneralizer;
+import prink.generalizations.ReductionGeneralizer;
 
 import java.util.ArrayList;
 
@@ -36,10 +39,10 @@ class ClusterTest {
         @BeforeEach
         void setUp() {
             ArrayList<CastleRule> rulesTemp = new ArrayList<>();
-            rulesTemp.add(new CastleRule(0, CastleFunction.Generalization.REDUCTION, false));
-            rulesTemp.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, false));
-            rulesTemp.add(new CastleRule(2, CastleFunction.Generalization.NONE, false));
-            rulesTemp.add(new CastleRule(3, CastleFunction.Generalization.NONE, true));
+            rulesTemp.add(new CastleRule(0, new ReductionGeneralizer(), false));
+            rulesTemp.add(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(0f,0f)), false));
+            rulesTemp.add(new CastleRule(2, new NoneGeneralizer(), false));
+            rulesTemp.add(new CastleRule(3, new NoneGeneralizer(), true));
 
             CastleRule[] rules = rulesTemp.toArray(new CastleRule[0]);
 

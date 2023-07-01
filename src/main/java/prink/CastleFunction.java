@@ -24,6 +24,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import prink.datatypes.CastleRule;
 import prink.datatypes.Cluster;
+import prink.generalizations.NoneGeneralizer;
+import prink.generalizations.ReductionGeneralizer;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -37,15 +39,15 @@ import java.util.stream.Collectors;
 public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> extends KeyedBroadcastProcessFunction<KEY, INPUT, CastleRule, OUTPUT>
         implements CheckpointedFunction {
 
-    public enum Generalization {
-        REDUCTION,
-        AGGREGATION,
-        NONNUMERICAL,
-        REDUCTION_WITHOUT_GENERALIZATION,
-        AGGREGATION_WITHOUT_GENERALIZATION,
-        NONNUMERICAL_WITHOUT_GENERALIZATION,
-        NONE
-    }
+//    public enum Generalization {
+//        REDUCTION,
+//        AGGREGATION,
+//        NONNUMERICAL,
+//        REDUCTION_WITHOUT_GENERALIZATION,
+//        AGGREGATION_WITHOUT_GENERALIZATION,
+//        NONNUMERICAL_WITHOUT_GENERALIZATION,
+//        NONE
+//    }
 
     // Counter for monitoring
     private transient Counter numSuppressedTuples;
@@ -142,7 +144,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
         BroadcastState<Integer, CastleRule> currentRuleState = context.getBroadcastState(ruleStateDescriptor);
 
         // Ignore rules without generalization type
-        if(rule.getGeneralizationType() == null) return;
+        if(rule.getGeneralizer() == null) return;
 
         // Convert rule map into sorted array
         int numOfRules = Math.max((rules != null ? rules.length : 1), (rule.getPosition() + 1));
@@ -155,7 +157,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
                 if (currentRuleState.contains(i)) {
                     newRuleArray[i] = currentRuleState.get(i);
                 }else{
-                    CastleRule missingRule = new CastleRule(i, Generalization.REDUCTION, false, 0.0);
+                    CastleRule missingRule = new CastleRule(i, new ReductionGeneralizer(), false);
                     context.getBroadcastState(ruleStateDescriptor).put(i, missingRule);
                     newRuleArray[i] = missingRule;
                 }
@@ -178,7 +180,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
 
         TimerService ts = context.timerService();
 
-//        tuple.setField(ts.currentProcessingTime(), 2); // TODO enable for performance testing only
+//        tuple.setField(ts.currentProcessingTime(), 2); // enable for performance testing only
 
         eventTimeLag.update(ts.currentProcessingTime() - ts.currentWatermark());
 
@@ -286,20 +288,10 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
             OUTPUT output = (OUTPUT) Tuple.newInstance(inputArity);
 
             for (int i = 0; i < Math.min(inputArity, rules.length); i++) {
-                switch (rules[i].getGeneralizationType()) {
-                    case REDUCTION:
-                    case AGGREGATION:
-                    case NONNUMERICAL:
-                        output.setField(null, i);
-                        break;
-                    case NONE:
-                    case REDUCTION_WITHOUT_GENERALIZATION:
-                    case AGGREGATION_WITHOUT_GENERALIZATION:
-                    case NONNUMERICAL_WITHOUT_GENERALIZATION:
-                        output.setField(input.getField(i), i);
-                        break;
-                    default:
-                        LOG.error("suppressTuple -> undefined transformation type: {}", rules[i]);
+                if(rules[i].getGeneralizer() instanceof NoneGeneralizer) {
+                    output.setField(input.getField(i), i);
+                }else{
+                    output.setField(null, i);
                 }
             }
             if(showInfoLoss) output.setField(1f,inputArity-1);
