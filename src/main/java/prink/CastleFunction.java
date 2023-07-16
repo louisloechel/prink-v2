@@ -39,16 +39,6 @@ import java.util.stream.Collectors;
 public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> extends KeyedBroadcastProcessFunction<KEY, INPUT, CastleRule, OUTPUT>
         implements CheckpointedFunction {
 
-//    public enum Generalization {
-//        REDUCTION,
-//        AGGREGATION,
-//        NONNUMERICAL,
-//        REDUCTION_WITHOUT_GENERALIZATION,
-//        AGGREGATION_WITHOUT_GENERALIZATION,
-//        NONNUMERICAL_WITHOUT_GENERALIZATION,
-//        NONE
-//    }
-
     // Counter for monitoring
     private transient Counter numSuppressedTuples;
     private transient Counter numMergedCluster;

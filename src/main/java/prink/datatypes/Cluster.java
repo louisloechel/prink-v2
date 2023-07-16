@@ -1,10 +1,11 @@
 package prink.datatypes;
 
-import org.apache.flink.api.java.tuple.*;
+import org.apache.flink.api.java.tuple.Tuple;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import prink.CastleFunction;
-import prink.generalizations.*;
+import prink.generalizations.BaseGeneralizer;
+import prink.generalizations.NoneGeneralizer;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -20,10 +21,6 @@ public class Cluster {
 
     private final ArrayList<Tuple> entries = new ArrayList<>();
     private final BaseGeneralizer[] generalizers;
-
-//    private final AggregationFloatGeneralizer aggreGeneralizer;
-//    private final ReductionGeneralizer reductGeneralizer;
-//    private final NonNumericalGeneralizer nonNumGeneralizer;
 
     private static final Logger LOG = LoggerFactory.getLogger(Cluster.class);
     private float cachedInfoLoss = -1;
@@ -137,26 +134,6 @@ public class Cluster {
             // If no cache is hit calculate information loss with input
             infoLossWith[i] = (generalizers[i] instanceof NoneGeneralizer) ? 0 : generalizers[i].generalize(input).f1;
 
-//            switch (config[i].getGeneralizationType()) {
-//                case NONE:
-//                    infoLossWith[i] = 0;
-//                    break;
-//                case REDUCTION:
-//                case REDUCTION_WITHOUT_GENERALIZATION:
-//                    infoLossWith[i] = reductGeneralizer.generalize(input, i).f1;
-//                    break;
-//                case AGGREGATION:
-//                case AGGREGATION_WITHOUT_GENERALIZATION:
-//                    infoLossWith[i] = aggreGeneralizer.generalize(input, i).f1;
-//                    break;
-//                case NONNUMERICAL:
-//                case NONNUMERICAL_WITHOUT_GENERALIZATION:
-//                    infoLossWith[i] = nonNumGeneralizer.generalize(input, i).f1;
-//                    break;
-//                default:
-//                    LOG.error("informationLossWith() -> undefined transformation type: {}", config[i]);
-//            }
-
             // Add info loss to cache if input is singular and not of type NONE
             if(CACHE_INFO_LOSS_PER_ATT && singularInput && !(generalizers[i] instanceof NoneGeneralizer)) infoLossValuesRequests.get(i).put(input.get(0).getField(i), infoLossWith[i]);
         }
@@ -182,26 +159,6 @@ public class Cluster {
 
         for (int i = 0; i < generalizers.length; i++) {
             infoLoss[i] = (generalizers[i] instanceof NoneGeneralizer) ? 0 : generalizers[i].generalize().f1;
-
-//            switch (config[i].getGeneralizationType()) {
-//                case NONE:
-//                    infoLoss[i] = 0;
-//                    break;
-//                case REDUCTION:
-//                case REDUCTION_WITHOUT_GENERALIZATION:
-//                    infoLoss[i] = reductGeneralizer.generalize(i).f1;
-//                    break;
-//                case AGGREGATION:
-//                case AGGREGATION_WITHOUT_GENERALIZATION:
-//                    infoLoss[i] = aggreGeneralizer.generalize(i).f1;
-//                    break;
-//                case NONNUMERICAL:
-//                case NONNUMERICAL_WITHOUT_GENERALIZATION:
-//                    infoLoss[i] = nonNumGeneralizer.generalize(i).f1;
-//                    break;
-//                default:
-//                    LOG.error("infoLoss() -> undefined transformation type: {}", config[i]);
-//            }
         }
         float output = calcCombinedInfoLoss(infoLoss);
         // Cache infoLoss until new tuple is added
@@ -270,25 +227,6 @@ public class Cluster {
             }else{
                 output.setField(generalizers[i].generalize().f0, i);
             }
-//            switch (config[i].getGeneralizationType()) {
-//                case REDUCTION:
-//                    output.setField(reductGeneralizer.generalize(i).f0, i);
-//                    break;
-//                case AGGREGATION:
-//                    output.setField(aggreGeneralizer.generalize(i).f0, i);
-//                    break;
-//                case NONNUMERICAL:
-//                    output.setField(nonNumGeneralizer.generalize(i).f0, i);
-//                    break;
-//                case NONE:
-//                case REDUCTION_WITHOUT_GENERALIZATION:
-//                case AGGREGATION_WITHOUT_GENERALIZATION:
-//                case NONNUMERICAL_WITHOUT_GENERALIZATION:
-//                    output.setField(input.getField(i), i);
-//                    break;
-//                default:
-//                    LOG.error("generalize -> undefined transformation type: {}", config[i]);
-//            }
         }
         if(showInfoLoss) output.setField(infoLoss(),inputArity-1);
         return output;
@@ -312,26 +250,6 @@ public class Cluster {
             }else{
                 output.setField(generalizers[i].generalizeMax().f0, i);
             }
-
-//            switch (config[i].getGeneralizationType()) {
-//                case REDUCTION:
-//                    output.setField(reductGeneralizer.generalizeMax(i).f0, i);
-//                    break;
-//                case AGGREGATION:
-//                    output.setField(aggreGeneralizer.generalizeMax(i).f0, i);
-//                    break;
-//                case NONNUMERICAL:
-//                    output.setField(nonNumGeneralizer.generalizeMax(i).f0, i);
-//                    break;
-//                case NONE:
-//                case REDUCTION_WITHOUT_GENERALIZATION:
-//                case AGGREGATION_WITHOUT_GENERALIZATION:
-//                case NONNUMERICAL_WITHOUT_GENERALIZATION:
-//                    output.setField(input.getField(i), i);
-//                    break;
-//                default:
-//                    LOG.error("generalizeMax -> undefined transformation type: {}", config[i]);
-//            }
         }
         if(showInfoLoss) output.setField(1.0f,inputArity-1);
         return output;

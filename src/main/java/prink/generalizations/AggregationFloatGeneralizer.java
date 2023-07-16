@@ -3,8 +3,8 @@ package prink.generalizations;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import prink.datatypes.Cluster;
+
 import java.util.List;
-import java.util.Optional;
 
 public class AggregationFloatGeneralizer implements BaseGeneralizer{
 

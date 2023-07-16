@@ -417,7 +417,7 @@ public class PrinkEvaluation {
         @Override
         public void invoke(INPUT input, SinkFunction.Context context) {
 
-//            System.out.println(description + input);
+            System.out.println(description + input);
 
             // Visualization
             if (input.getField(15) != null && input.getField(16) != null && input.getField(1) != null && input.getField(13) != null){

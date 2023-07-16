@@ -1,6 +1,8 @@
-# Prink
+# Privacy Preserving Flink
 
-Prink (Privacy-Preserving Flink) is an implementation of the [CASTLE library](https://ieeexplore.ieee.org/document/5374415) into the streaming framework [Apache Flink](https://flink.apache.org/).
+## A fully functional data anonymization solution for Apache Flink
+Prink is a data anonymization solution for Apache Flink, that provides k-anonymity and l-diversity for data streams. 
+It implements the [CASTLE library](https://ieeexplore.ieee.org/document/5374415) providing strong anonymization guarantees for numerical and non-numerical data, as well as support for multiple sensitive attributes and custom generalizers.
 
 ## Getting started
 - Install Apache Flink following the official installation [instructions](https://nightlies.apache.org/flink/flink-docs-release-1.15//docs/try-flink/local_installation/).
@@ -29,9 +31,10 @@ Prink uses a `MapState` for rule broascasting:
                         TypeInformation.of(new TypeHint<CastleRule>(){}));
 
     ArrayList<CastleRule> rules = new ArrayList<>();
-        rules.add(new CastleRule(0, CastleFunction.Generalization.REDUCTION, false));
-        rules.add(new CastleRule(1, CastleFunction.Generalization.AGGREGATION, Tuple2.of(17f,90f), false));
-        rules.add(new CastleRule(2, CastleFunction.Generalization.NONE, true));
+        rules.add(new CastleRule(0, new ReductionGeneralizer(), false));
+        rules.add(new CastleRule(1, new AggregationFloatGeneralizer(Tuple2.of(17f, 90f)), false));
+        rules.add(new CastleRule(2, new NoneGeneralizer(), true));
+
 
 	BroadcastStream<CastleRule> ruleBroadcastStream = env
                 .fromCollection(rules)
@@ -92,32 +95,29 @@ For the anonymization of the data stream Prink uses `CastleRules` to define how 
 | Name                   | Type                          | Allowed Values       | Usage                                                                    |
 |------------------------|-------------------------------|----------------------|--------------------------------------------------------------------------|
 | position               | int                           | 0-max size of Tuple  | Defines the position inside the data tuple that the rule should apply to |
-| generalizationType     | CastleFunction.Generalization | enum provided values | Defines how the attribute at the defined position should be generalized  |
-| domain (Optional)      | Tuple2<Float,Float>           | Tuple2<min Value, max Value>  | Defines to minimal and maximal value for the AggregationGeneralizer      |
-| treeEntries (Optional) | ArrayList<String[]>           | ArrayList<String[]>  | Defines the tree structure to be used for the NonNumericalGeneralizer    |
+| generalizer            | BaseGeneralizer               | BaseGeneralizer instance | Defines how the attribute at the defined position should be generalized |
 | isSensibleAttribute    | boolean                       | [true, false]        | Defines if the position inside the data tuple is a sensible attribute    |
 | infoLossMultiplier (Optional)| double                  | 0.0 - 1.0                  | Defines the multiplier for the Normalized Certainty Penalty calculation. If all rule values sum up to 1 the Normalized Certainty Penalty is used |
 
 ## Prink Generalizers
-Currently, Prink provides the following Generalizers for the data:
+Currently, Prink provides the following Generalizers:
 
-| generalizationType                  | Example Rule                                                                                                     | Generalization Result                                  |
+| Generalizer Class                   | Example Rule                                                                                                     | Generalization Result                                  |
 |-------------------------------------|------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| REDUCTION                           | `new CastleRule(5, CastleFunction.Generalization.REDUCTION, false)`                                              | [123456, 12789, 12678] -> 12****                       |
-| AGGREGATION                         | `new CastleRule(5, CastleFunction.Generalization.AGGREGATION, Tuple2.of(0f,100f), false)`                        | [20, 22, 35] -> [20-35]                                |
-| NONNUMERICAL                        | `new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL, treeEntries, false)`                              | (see Non-Numercial-Generalizer Chapter)                |
-| REDUCTION_WITHOUT_GENERALIZATION    | `new CastleRule(5, CastleFunction.Generalization.REDUCTION_WITHOUT_GENERALIZATION, false)`                       | [123456, 12789, 12678] -> [123456, 12789, 12678]       |
-| AGGREGATION_WITHOUT_GENERALIZATION  | `new CastleRule(5, CastleFunction.Generalization.AGGREGATION_WITHOUT_GENERALIZATION, Tuple2.of(0f,100f), false)` | [20, 22, 35] -> [20, 22, 35]                           |
-| NONNUMERICAL_WITHOUT_GENERALIZATION | `new CastleRule(5, CastleFunction.Generalization.NONNUMERICAL_WITHOUT_GENERALIZATION, treeEntries, false)`       | No data change (see Non-Numercial-Generalizer Chapter) |
-| NONE                                | `new CastleRule(5, CastleFunction.Generalization.NONE, false)`                                                   | No data change                                         |
+| NoneGeneralizer                     | `new CastleRule(5, new NoneGeneralizer(), false)`                               | `[20, 22, 35]` &#8594; `[20, 22, 35]`              |
+| ReductionGeneralizer                | `new CastleRule(5, new ReductionGeneralizer(), false)`                          | `[123456, 12789, 12678]` &#8594; `"12****"`           |
+| AggregationIntegerGeneralizer       | `new CastleRule(5, new AggregationIntegerGeneralizer(Tuple2.of(0, 100)), false)` | `[20, 22, 35]` &#8594; `(20, 35)`                    |
+| AggregationFloatGeneralizer         | `new CastleRule(5, new AggregationFloatGeneralizer(Tuple2.of(0f, 100f)), false)` | `[2.0f, 2.2f, 3.5f]` &#8594; `(2.0f, 3.5f)`          |
+| AggregationDoubleGeneralizer        | `new CastleRule(5, new AggregationDoubleGeneralizer(Tuple2.of(0d, 100d)), false)`| `[2.0d, 2.2d, 3.5d]` &#8594; `(2.0d, 3.5d)`          |
+| NonNumericalGeneralizer             | `new CastleRule(5, new NonNumericalGeneralizer(treeEntries), false)`            | `["IT-Student", "Bio-Student"]` &#8594; `"Student"` |
 
 ### Non-Numerical-Generalizer
-To use the `Non-Numerical-Generalizer` a domain generalization hierarchy needs to be defined.
+To use the `NonNumericalGeneralizer` a domain generalization hierarchy needs to be defined.
 
 This can be done in two ways:
 
-- by sending a `Array` (`["Europe", "West-Europe","Germany"]`) instead of a `String` (`"Germany"`) as the data tuples attribute (This option is not encouraged and should only be used if really needed!)
-- by providing it at the rule definition (Encouraged option):
+1. sending an `Array` (`["Europe", "West-Europe","Germany"]`) instead of a `String` (`"Germany"`) as the data tuples attribute (This option is **not** encouraged and should only be used if necessary!).
+1. providing it in the rule definition (**Preferred option**):
 
 ```
     ArrayList<String[]> treeNation = new ArrayList<>();
@@ -128,8 +128,72 @@ This can be done in two ways:
     treeNation.add(new String[]{"Europe", "West-Europe","Germany"});
     treeNation.add(new String[]{"Asia", "West-Asia","Iran"});
 
-    new CastleRule(14, CastleFunction.Generalization.NONNUMERICAL, treeNation, false)
+    new CastleRule(14, new NonNumericalGeneralizer(treeNation), false)
 ```
+
+## Custom Generalizer
+Prink provides the option to add your own custom generalizer to the algorithm. This enables the use of new generalization concepts and the adaption to specific project needs.
+
+To integrate a new Generalizer create a new Generalizer class that implements the `BaseGeneralizer`-Interface.
+```
+    public class MyCustomGeneralizer implements BaseGeneralizer{
+        ...
+    }
+```
+
+The Interface consists of 6 functions, that need to be implemented and have the following function:
+
+### clone()
+```
+    BaseGeneralizer clone(int position, Cluster owningCluster);
+```
+The `clone()` function is part of the [prototype pattern](https://en.wikipedia.org/wiki/Prototype_pattern) used by Prink to create generalizer instances for newly created data clusters. When a new `Cluster` is created the `clone()` function will be called on the original generalizer instance provided in the defined `CastleRule` returning a new instance of the generalizer that only lives inside the new cluster.
+The `clone()` function also provides the new generalizer instance with the `position` of the attribute that needs to be generalized, as well as a references to the `Cluster` that "owns" the generalizer instance. This references also enables the generalizer to have access to all data tuples inside the cluster by calling `getAllEntries()` on the cluster. 
+
+For more information see: `BaseGeneralizer.java`
+
+### generalize()
+```
+    Tuple2<?, Float> generalize();
+```
+The `generalize()` function is called when a data tuple needs to be generalized. 
+It returns a `Tuple2` where the first value of the tuple is the generalization result of this generalizer and the second value is the resulting information loss of the applied generalization.
+The generalization result can have any data type specified by the custom generalizer implementation. The information loss needs to be returned as a `Float` between `0f` (no information loss) and `1f` (all information is lost).
+
+Note: Even though the `generalize()` function is called for each data tuple individually, the data tuple is not given to the `generalize()` function. This is to protect and ensure that the generalization is always applied over all data tuples inside the cluster, so no data can leak from an individual data tuple by accident.
+
+**Important:** The generalization needs to happen over all data tuples inside the "owning" cluster and only these data tuples (`cluster.getAllEntries()`).
+The function result is **not** allowed to be changed by the `generalize(withTuple)` function!
+
+### generalize(withTuples)
+```
+    Tuple2<?, Float> generalize(List<Tuple> withTuples);
+```
+The `generalize(withTuple)` function is called when the enlargement value (the increase in information loss through a new data tuple in a cluster) needs to be calculated. 
+The function should behave the exact same way as the normal `generalize()` function, except that the provided `List<Tuple>` of data tuples also needs to be included in the generalization result, returning a new generalization result and a new information loss.
+
+**Important:** This inclusion of additional data tuples is only temporary and is not allowed to have any effect outside of the function call. The normal `generalize()` is not allowed to be affected by this function!
+
+### generalizeMax()
+```
+    Tuple2<?, Float> generalizeMax();
+```
+The `generalizeMax()` function is called when a data tuple needs to be suppressed and should not just be set to `null`. This function should return the result of the maximal applied generalization of this generalizer, resulting in an information loss of `1f`.
+
+Example: The `ReductionGeneralizer`s `generalizeMax()` function returns: `"*"` and the `AggregationIntegerGeneralizer`s `generalizeMax()` function with an upper and lower bound of `[0, 100]` returns: `(0, 100)`.
+
+### addTuple(newTuple) - removeTuple(removedTuple)
+```
+    void addTuple(Tuple newTuple);
+    void removeTuple(Tuple removedTuple);
+```
+The `addTuple(Tuple newTuple)` and `removeTuple(Tuple removedTuple)` function are helper functions that get called when a new data tuple is added or removed from the "owning" cluster. They make it possible to extract some of the generalizer logic out of the `generalize()` function and remove unnecessary calls and iterations over `cluster.getAllEntries()`.
+
+Note: The use of these two functions is completely optional.
+
+### Further information
+If you need more information on custom generalizer creation, take a look at the Interface class: `BaseGeneralizer.java` and the default Prink generalizer implementations: `ReductionGeneralizer.java`, `AggregationIntGeneralizer.java`, `NonNumericalGeneralizer.java`.
+
 [comment]: <> (## Contributing)
 
 [comment]: <> (*WIP*)
@@ -143,38 +207,6 @@ If you encounter the following error when starting a flink cluster and using Cyg
 Follow the instructions here: https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/deployment/resource-providers/standalone/overview/#windows-cygwin-users
 
 See also for additional error: https://stackoverflow.com/questions/72132420/why-apache-flink-in-not-running-on-windows
-
-[//]: # (If you are installing Flink from the git repository and you are using the Windows git shell, Cygwin can produce a failure similar to this one:)
-
-[//]: # ()
-[//]: # (c:/flink/bin/start-cluster.sh: line 30: $'\r': command not found)
-
-[//]: # ()
-[//]: # (This error occurs because git is automatically transforming UNIX line endings to Windows style line endings when running on Windows. The problem is that Cygwin can only deal with UNIX style line endings. The solution is to adjust the Cygwin settings to deal with the correct line endings by following these three steps:)
-
-[//]: # ()
-[//]: # (    Start a Cygwin shell.)
-
-[//]: # ()
-[//]: # (    Determine your home directory by entering)
-
-[//]: # ()
-[//]: # (    cd; pwd)
-
-[//]: # ()
-[//]: # (    This will return a path under the Cygwin root path.)
-
-[//]: # ()
-[//]: # (    Using NotePad, WordPad or a different text editor open the file .bash_profile in the home directory and append the following &#40;if the file does not exist you will have to create it&#41;:)
-
-[//]: # ()
-[//]: # (    $ export SHELLOPTS)
-
-[//]: # (    $ set -o igncr)
-
-[//]: # ()
-[//]: # (    Save the file and open a new bash shell.)
-
 
 ## License
 The project will be open source. *WIP*
