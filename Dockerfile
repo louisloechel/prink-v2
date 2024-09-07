@@ -9,4 +9,4 @@ FROM flink
 
 COPY --from=build /app/target/prink-*.jar /opt/flink/usrlib/artifacts/1/
 
-CMD [ "--job-classname", "prink.PrinkEvaluation" ]
+CMD [ "--job-classname", "ganges.GangesEvaluation" ]
