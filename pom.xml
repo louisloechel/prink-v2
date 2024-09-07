@@ -213,7 +213,7 @@ under the License.
 							</filters>
 							<transformers>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-									<mainClass>prink.PrinkEvaluation</mainClass>
+									<mainClass>ganges.GangesEvaluation</mainClass>
 								</transformer>
 							</transformers>
 						</configuration>
