@@ -53,7 +53,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
 
     private static final Logger LOG = LoggerFactory.getLogger(CastleFunction.class);
 
-    private CastleRule[] rules;
+    private transient CastleRule[] rules;
 
     private final MapStateDescriptor<Integer, CastleRule> ruleStateDescriptor =
             new MapStateDescriptor<>(
@@ -112,7 +112,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
      *                         1 = every quasi-identifier gets replaced with <code>null</code> <br>
      *                         2 = quasi-identifiers are generalized with max generalization values
      */
-    public CastleFunction(int posTupleId, int k, int l, int delta, int beta, int zeta, int mu, boolean showInfoLoss, int suppressStrategy){
+    public CastleFunction(int posTupleId, int k, int l, int delta, int beta, int zeta, int mu, boolean showInfoLoss, int suppressStrategy) {
         this.posTupleId = posTupleId;
         this.k = k;
         this.l = l;
@@ -122,6 +122,29 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
         this.mu = mu;
         this.showInfoLoss = showInfoLoss;
         this.suppressStrategy = suppressStrategy;
+
+    }
+
+
+    public CastleFunction(int posTupleId, int k, int l, int delta, int beta, int zeta, int mu, boolean showInfoLoss, int suppressStrategy, List<CastleRule> rules) {
+        this.posTupleId = posTupleId;
+        this.k = k;
+        this.l = l;
+        this.delta = delta;
+        this.beta = beta;
+        this.zeta = zeta;
+        this.mu = mu;
+        this.showInfoLoss = showInfoLoss;
+        this.suppressStrategy = suppressStrategy;
+
+        this.rules = rules.toArray(new CastleRule[0]);
+
+        // Redefine sensible attribute positions
+        ArrayList<Integer> newPos = new ArrayList<>();
+        for(int i = 0; i < this.rules.length; i++) {
+            if(this.rules[i].getIsSensibleAttribute()) newPos.add(i);
+        }
+        posSensibleAttributes = newPos.stream().mapToInt(i -> i).toArray();
     }
 
     public CastleFunction(){
@@ -421,6 +444,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
             }
             numCollectedClusters.inc();
             for(Tuple tuple: cluster.getAllEntries()){
+                LOG.debug("output: {}", (Object) tuple);
                 output.collect((OUTPUT) cluster.generalize(tuple));
                 // Does not use removeTuple(), since the cluster is potentially reused through bigOmega
                 globalTuples.remove(tuple);

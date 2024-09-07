@@ -14,12 +14,16 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.BroadcastStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import prink.CastleFunction;
 import prink.datatypes.CastleRule;
 import prink.generalizations.*;
 
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -29,7 +33,10 @@ import java.util.stream.Collectors;
 
 public class GangesEvaluation {
 
+    private final static Logger LOG = LoggerFactory.getLogger(GangesEvaluation.class);
+
     public static void main(String[] args) throws Exception {
+
         ParameterTool params = ParameterTool.fromArgs(args);
         GangesEvaluation gangesEvaluation = new GangesEvaluation();
         JobExecutionResult r = gangesEvaluation.execute(params);
@@ -45,8 +52,6 @@ public class GangesEvaluation {
         int beta = parameters.getInt("beta");
         int zeta = parameters.getInt("zeta");
         int mu = parameters.getInt("mu");
-        boolean parallel = parameters.getBoolean("parallel", false); // false
-        boolean local = parameters.getBoolean("local", true); // true
 
         String sutHost = parameters.get("sut_host", "localhost");
         int sutPortWrite = parameters.getInt("sut_port_write", 50051);
@@ -54,7 +59,8 @@ public class GangesEvaluation {
 
         // Set up streaming execution environment
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        DataStreamSource<String> sourceData = env.socketTextStream(sutHost, sutPortWrite);
+        env.setParallelism(1);
+
 
         MapStateDescriptor<Integer, CastleRule> ruleStateDescriptor =
                 new MapStateDescriptor<>(
@@ -68,22 +74,22 @@ public class GangesEvaluation {
         BroadcastStream<CastleRule> ruleBroadcastStream = env.fromCollection(rules)
                 .broadcast(ruleStateDescriptor);
 
-        String evalDescription = "Ganges Eval: " + new SimpleDateFormat("yyyy-MM-dd hh-mm-ss").format(new Date()) + " (k=" + k + " l=" + l + " delta=" + delta + " beta=" + beta + " zeta=" + zeta + " mu=" + mu + " parallel=" + parallel + ")";
+        String evalDescription = "Ganges Eval: " + new SimpleDateFormat("yyyy-MM-dd hh-mm-ss").format(new Date()) + " (k=" + k + " l=" + l + " delta=" + delta + " beta=" + beta + " zeta=" + zeta + " mu=" + mu + ")";
 
+        SingleOutputStreamOperator<Tuple17<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> source = env.socketTextStream(sutHost, sutPortWrite)
+                .map(new StringToTuple<>());
         // Create a stream of custom elements and apply transformations
-        DataStream<Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> dataStream = sourceData
-                .map(new StringToTuple<Tuple17<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>())
+        DataStream<Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> dataStream = source
                 .returns(TypeInformation.of(new TypeHint<Tuple17<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>() {
                 }))
                 .keyBy(tuple -> tuple.getField(0))
                 .connect(ruleBroadcastStream)
-                .process(new CastleFunction<Long, Tuple17<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>, Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>(0, k, l, delta, beta, zeta, mu, true, 2))
+                .process(new CastleFunction<Long, Tuple17<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>, Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>(0, k, l, delta, beta, zeta, mu, true, 2, rules))
                 .returns(TypeInformation.of(new TypeHint<Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>() {
                 }))
-
                 .name(evalDescription);
 
-        dataStream.writeToSocket(sutHost, sutPortRead, new TupleToString<>());
+        dataStream.writeToSocket(sutHost, sutPortRead, new TupleToString<>()).setParallelism(1);
 
         // Execute the transformation pipeline
         return env.execute(evalDescription);
@@ -91,12 +97,12 @@ public class GangesEvaluation {
 
 
     public enum DatasetFields {
-        ID,
         TS,
-        BUILDING_ID(new AggregationIntegerGeneralizer(Tuple2.of(0, 1000)), false),
+        ID,
+        BUILDING_ID(new AggregationIntegerGeneralizer(Tuple2.of(0, 1000)), true),
 
         TIMESTAMP,
-        METER_READING(new AggregationFloatGeneralizer(Tuple2.of(0f, 100000f)), false),
+        METER_READING(new AggregationFloatGeneralizer(Tuple2.of(0f, 100000f)), true),
         PRIMARY_USE(new NonNumericalGeneralizer(new String[][]{
                 {"private", "Lodging/Residential"},
                 {"public", "commercial", "Entertainment", "Technology/Science", "Office", "Parking"},
@@ -151,7 +157,11 @@ public class GangesEvaluation {
                 return Integer.parseInt(input);
             }
 
-            return input;
+            try {
+                return Long.parseLong(input);
+            } catch (Exception e) {
+                return input;
+            }
         }
     }
 
@@ -159,7 +169,16 @@ public class GangesEvaluation {
 
         @Override
         public byte[] serialize(T element) {
-            return element.toString().getBytes(StandardCharsets.UTF_8);
+            StringWriter writer = new StringWriter();
+            for (int i = 0 ; i < element.getArity() ; i++) {
+                String sub = StringUtils.arrayAwareToString(element.getField(i));
+                writer.write(sub);
+                if (i + 1 < element.getArity()) {
+                    writer.write(";");
+                }
+            }
+            writer.write("\n");
+            return writer.toString().getBytes(StandardCharsets.UTF_8);
         }
     }
 
@@ -168,7 +187,7 @@ public class GangesEvaluation {
 
         @Override
         public T map(String s) throws Exception {
-            String[] split = s.split(",");
+            String[] split = s.split(";");
             DatasetFields[] fields = DatasetFields.values();
             T newTuple = (T) Tuple.newInstance(fields.length);
 

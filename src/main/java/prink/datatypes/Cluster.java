@@ -54,6 +54,13 @@ public class Cluster {
         }
     }
 
+    @Override
+    public String toString() {
+        return "Cluster{" +
+                "entries=" + entries +
+                '}';
+    }
+
     /**
      * Calculates the enlargement value of this cluster when adding the given input
      * @param input Cluster to consider for the enlargement calculation
