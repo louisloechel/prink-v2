@@ -7,10 +7,7 @@ import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.tuple.Tuple;
-import org.apache.flink.api.java.tuple.Tuple17;
-import org.apache.flink.api.java.tuple.Tuple18;
-import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.*;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.BroadcastStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -76,16 +73,16 @@ public class GangesEvaluation {
 
         String evalDescription = "Ganges Eval: " + new SimpleDateFormat("yyyy-MM-dd hh-mm-ss").format(new Date()) + " (k=" + k + " l=" + l + " delta=" + delta + " beta=" + beta + " zeta=" + zeta + " mu=" + mu + ")";
 
-        SingleOutputStreamOperator<Tuple17<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> source = env.socketTextStream(sutHost, sutPortWrite)
+        SingleOutputStreamOperator<Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> source = env.socketTextStream(sutHost, sutPortWrite)
                 .map(new StringToTuple<>());
         // Create a stream of custom elements and apply transformations
-        DataStream<Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> dataStream = source
-                .returns(TypeInformation.of(new TypeHint<Tuple17<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>() {
+        DataStream<Tuple19<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> dataStream = source
+                .returns(TypeInformation.of(new TypeHint<Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>() {
                 }))
                 .keyBy(tuple -> tuple.getField(0))
                 .connect(ruleBroadcastStream)
-                .process(new CastleFunction<Long, Tuple17<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>, Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>(0, k, l, delta, beta, zeta, mu, true, 2, rules))
-                .returns(TypeInformation.of(new TypeHint<Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>() {
+                .process(new CastleFunction<Long, Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>, Tuple19<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>(0, k, l, delta, beta, zeta, mu, true, 0, rules))
+                .returns(TypeInformation.of(new TypeHint<Tuple19<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>() {
                 }))
                 .name(evalDescription);
 
@@ -97,22 +94,13 @@ public class GangesEvaluation {
 
 
     public enum DatasetFields {
-        TS,
-        ID,
-        BUILDING_ID(new AggregationIntegerGeneralizer(Tuple2.of(0, 1000)), true),
-
+        BUILDING_ID,
         TIMESTAMP,
         METER_READING(new AggregationFloatGeneralizer(Tuple2.of(0f, 100000f)), true),
-        PRIMARY_USE(new NonNumericalGeneralizer(new String[][]{
-                {"private", "Lodging/Residential"},
-                {"public", "commercial", "Entertainment", "Technology/Science", "Office", "Parking"},
-                {"public", "administrative", "Education"},
-                {"public", "administrative", "Public Services"},
-                {"public", "administrative", "Utility"}
-        }), false),
+        PRIMARY_USE(new NonNumericalGeneralizer(new String[][]{ {"private", "Lodging/Residential"}, {"public", "commercial", "Entertainment", "Technology/Science", "Office", "Parking"}, {"public", "administrative", "Education"}, {"public", "administrative", "Public Services"}, {"public", "administrative", "Utility"} }), false),
         SQUARE_FEET(new AggregationFloatGeneralizer(Tuple2.of(0f, 50f)), false),
-        YEAR_BUILD,
-        FLOOR_COUNT,
+        YEAR_BUILD(new AggregationFloatGeneralizer(Tuple2.of(1900f, 2020f)), false),
+        FLOOR_COUNT(new AggregationFloatGeneralizer(Tuple2.of(0f, 15f)), false),
         AIR_TEMPERATURE(new AggregationFloatGeneralizer(Tuple2.of(1f, 1f)), false),
         CLOUD_COVERAGE(new AggregationFloatGeneralizer(Tuple2.of(0f, 9f)), false),
         DEW_TEMPERATURE(new AggregationFloatGeneralizer(Tuple2.of(1f, 1f)), false),
@@ -120,8 +108,12 @@ public class GangesEvaluation {
         SEA_LEVEL_PRESSURE(new AggregationFloatGeneralizer(Tuple2.of(1f, 1f)), false),
         WIND_DIRECTION(new AggregationFloatGeneralizer(Tuple2.of(1f, 1f)), false),
         WIND_SPEED(new AggregationFloatGeneralizer(Tuple2.of(1f, 1f)), false),
-
-        A(),
+        BUILDING_ID2,
+        UNIXTIMESTAMP(new AggregationFloatGeneralizer(Tuple2.of(1451600000000000000f, 1490000000000000000f)), false),
+        // message id from client
+        M_ID,
+        // ingestion timestamp
+        TS,
         ;
 
         private final BaseGeneralizer generalizer;
