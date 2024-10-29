@@ -49,6 +49,7 @@ public class GangesEvaluation {
         int beta = parameters.getInt("beta");
         int zeta = parameters.getInt("zeta");
         int mu = parameters.getInt("mu");
+        int runId = parameters.getInt("run_id", 0);
 
         String sutHost = parameters.get("sut_host", "localhost");
         int sutPortWrite = parameters.getInt("sut_port_write", 50051);
@@ -71,7 +72,7 @@ public class GangesEvaluation {
         BroadcastStream<CastleRule> ruleBroadcastStream = env.fromCollection(rules)
                 .broadcast(ruleStateDescriptor);
 
-        String evalDescription = "Ganges Eval: " + new SimpleDateFormat("yyyy-MM-dd hh-mm-ss").format(new Date()) + " (k=" + k + " l=" + l + " delta=" + delta + " beta=" + beta + " zeta=" + zeta + " mu=" + mu + ")";
+        String evalDescription = String.format("k%d_delta%d_l%d_beta%d_zeta%d_mu%d_run%d", k, l, delta, beta, zeta, mu, runId);
 
         SingleOutputStreamOperator<Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> source = env.socketTextStream(sutHost, sutPortWrite)
                 .map(new StringToTuple<>());
