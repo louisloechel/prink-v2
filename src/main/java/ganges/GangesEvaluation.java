@@ -72,7 +72,7 @@ public class GangesEvaluation {
         BroadcastStream<CastleRule> ruleBroadcastStream = env.fromCollection(rules)
                 .broadcast(ruleStateDescriptor);
 
-        String evalDescription = String.format("k%d_delta%d_l%d_beta%d_zeta%d_mu%d_run%d", k, l, delta, beta, zeta, mu, runId);
+        String evalDescription = String.format("k%d_delta%d_l%d_beta%d_zeta%d_mu%d_run%d", k, delta, l, beta, zeta, mu, runId);
 
         SingleOutputStreamOperator<Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> source = env.socketTextStream(sutHost, sutPortWrite)
                 .map(new StringToTuple<>());
