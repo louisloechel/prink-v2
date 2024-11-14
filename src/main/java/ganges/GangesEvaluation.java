@@ -97,7 +97,7 @@ public class GangesEvaluation {
     public enum DatasetFields {
         BUILDING_ID,
         TIMESTAMP,
-        METER_READING(new AggregationFloatGeneralizer(Tuple2.of(0f, 100000f)), true),
+        METER_READING(new NoneGeneralizer(), true),
         PRIMARY_USE(new NonNumericalGeneralizer(new String[][]{ {"private", "Lodging/Residential"}, {"public", "commercial", "Entertainment", "Technology/Science", "Office", "Parking"}, {"public", "administrative", "Education"}, {"public", "administrative", "Public Services"}, {"public", "administrative", "Utility"} }), false),
         SQUARE_FEET(new AggregationFloatGeneralizer(Tuple2.of(0f, 50f)), false),
         YEAR_BUILD(new AggregationFloatGeneralizer(Tuple2.of(1900f, 2020f)), false),
