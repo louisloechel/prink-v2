@@ -1,5 +1,6 @@
 package prink;
 
+import ganges.GangesEvaluation;
 import org.apache.flink.api.common.state.BroadcastState;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
@@ -192,8 +193,7 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
         LOG.debug("Element received: key: {}", tuple.getField(posTupleId).toString());
 
         TimerService ts = context.timerService();
-
-//        tuple.setField(ts.currentProcessingTime(), 2); // enable for performance testing only
+        tuple.setField(System.currentTimeMillis(), GangesEvaluation.DatasetFields.T_BS.getId());
 
         eventTimeLag.update(ts.currentProcessingTime() - ts.currentWatermark());
 
@@ -211,6 +211,8 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
         bestCluster.addEntry(tuple);
         globalTuples.add(tuple);
 
+        tuple.setField(System.currentTimeMillis(), GangesEvaluation.DatasetFields.T_BSE.getId());
+
         // Different approach than CASTLE. Approach from the CASTLEGUARD code (see: https://github.com/hallnath1/CASTLEGUARD)
         if(globalTuples.size() > delta) delayConstraint(globalTuples.get(0), output);
     }
@@ -227,6 +229,11 @@ public class CastleFunction<KEY, INPUT extends Tuple, OUTPUT extends Tuple> exte
             LOG.error("delayConstraint -> clusterWithInput is NULL");
             return;
         }
+
+        for (Tuple tuple: globalTuples) {
+            tuple.setField(System.currentTimeMillis(), GangesEvaluation.DatasetFields.T_D.getId());
+        }
+
         if(clusterWithInput.size() >= k && clusterWithInput.diversity(posSensibleAttributes) >= l){
             outputCluster(clusterWithInput, output);
         }else{

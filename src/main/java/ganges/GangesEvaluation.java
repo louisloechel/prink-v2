@@ -74,16 +74,16 @@ public class GangesEvaluation {
 
         String evalDescription = String.format("k%d_delta%d_l%d_beta%d_zeta%d_mu%d_run%d", k, delta, l, beta, zeta, mu, runId);
 
-        SingleOutputStreamOperator<Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> source = env.socketTextStream(sutHost, sutPortWrite)
+        SingleOutputStreamOperator<Tuple22<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> source = env.socketTextStream(sutHost, sutPortWrite)
                 .map(new StringToTuple<>());
         // Create a stream of custom elements and apply transformations
-        DataStream<Tuple19<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> dataStream = source
-                .returns(TypeInformation.of(new TypeHint<Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>() {
+        DataStream<Tuple23<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>> dataStream = source
+                .returns(TypeInformation.of(new TypeHint<Tuple22<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>() {
                 }))
                 .keyBy(tuple -> tuple.getField(0))
                 .connect(ruleBroadcastStream)
-                .process(new CastleFunction<Long, Tuple18<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>, Tuple19<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>(0, k, l, delta, beta, zeta, mu, true, 0, rules))
-                .returns(TypeInformation.of(new TypeHint<Tuple19<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>() {
+                .process(new CastleFunction<Long, Tuple22<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>, Tuple23<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>(0, k, l, delta, beta, zeta, mu, true, 0, rules))
+                .returns(TypeInformation.of(new TypeHint<Tuple23<Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object, Object>>() {
                 }))
                 .name(evalDescription);
 
@@ -115,6 +115,11 @@ public class GangesEvaluation {
         M_ID,
         // ingestion timestamp
         TS,
+        // for performance timestamps
+        T_BS,
+        T_BSE,
+        T_D,
+        T_DE
         ;
 
         private final BaseGeneralizer generalizer;
@@ -162,6 +167,8 @@ public class GangesEvaluation {
 
         @Override
         public byte[] serialize(T element) {
+            element.setField(System.currentTimeMillis(), DatasetFields.T_DE.getId());
+
             StringWriter writer = new StringWriter();
             for (int i = 0 ; i < element.getArity() ; i++) {
                 String sub = StringUtils.arrayAwareToString(element.getField(i));
